@@ -16,12 +16,20 @@ Object.defineProperty(window, 'localStorage', {
 
 describe('Stock Store', () => {
   beforeEach(() => {
-    // Clear the store state before each test
-    useStockStore.getState().watchlist = []
-    useStockStore.getState().recentSearches = []
-    useStockStore.getState().selectedTimeRange = '1D'
-    useStockStore.getState().selectedChartType = 'line'
-    useStockStore.getState().isDarkMode = false
+    jest.clearAllMocks()
+    mockLocalStorage.getItem.mockReturnValue(null)
+    
+    // Reset store state using store methods
+    const { result } = renderHook(() => useStockStore())
+    act(() => {
+      result.current.clearWatchlist()
+      result.current.clearRecentSearches()
+      result.current.setTimeRange('1D')
+      result.current.setChartType('line')
+      if (result.current.isDarkMode) {
+        result.current.toggleDarkMode()
+      }
+    })
     
     jest.clearAllMocks()
   })

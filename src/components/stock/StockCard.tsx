@@ -29,7 +29,8 @@ export default function StockCard({
   const isInWatchlist = watchlist.some(item => item.symbol === quote?.symbol)
   const changeColor = getPriceChangeColor(quote?.change || 0)
 
-  const handleWatchlistToggle = () => {
+  const handleWatchlistToggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (!quote) return
     
     if (isInWatchlist) {
@@ -106,6 +107,7 @@ export default function StockCard({
                 size="sm"
                 onClick={handleWatchlistToggle}
                 className="h-8 w-8 p-0"
+                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
               >
                 {isInWatchlist ? (
                   <Minus className="h-4 w-4" />
@@ -160,7 +162,14 @@ export default function StockCard({
         )}
 
         {onViewDetails && (
-          <Button variant="outline" className="w-full" onClick={onViewDetails}>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={(e) => {
+              e.stopPropagation()
+              onViewDetails()
+            }}
+          >
             View Details
           </Button>
         )}

@@ -1,25 +1,38 @@
 import { searchStocks, getStockQuote, getCompanyOverview, getStockChart } from '@/lib/api'
-import { mockYahooFinance } from '../setup/mocks/yahoo-finance'
 
-// Import and setup MSW
-import { server } from '../setup/mocks/server'
+// Mock yahoo-finance2 module
+jest.mock('yahoo-finance2', () => ({
+  search: jest.fn(),
+  quote: jest.fn(),
+  quoteSummary: jest.fn(),
+  historical: jest.fn(),
+}))
 
-beforeAll(() => {
-  server.listen()
-})
+const mockYahooFinance = require('yahoo-finance2')
 
-afterEach(() => {
-  server.resetHandlers()
+beforeEach(() => {
   jest.clearAllMocks()
-})
-
-afterAll(() => {
-  server.close()
+  // Reset mock implementations
+  Object.values(mockYahooFinance).forEach(mock => mock.mockReset())
 })
 
 describe('API Functions', () => {
   describe('searchStocks', () => {
     it('should return search results for valid query', async () => {
+      // Mock Yahoo Finance search response
+      mockYahooFinance.search.mockResolvedValue({
+        quotes: [
+          {
+            symbol: 'AAPL',
+            shortname: 'Apple Inc.',
+            longname: 'Apple Inc.',
+            typeDisp: 'Equity',
+            sector: 'Technology',
+            industry: 'Consumer Electronics'
+          }
+        ]
+      })
+
       const result = await searchStocks('Apple')
       
       expect(result.success).toBe(true)
@@ -85,6 +98,24 @@ describe('API Functions', () => {
 
   describe('getStockQuote', () => {
     it('should return stock quote for valid symbol', async () => {
+      // Mock Yahoo Finance quote response  
+      mockYahooFinance.quote.mockResolvedValue({
+        symbol: 'AAPL',
+        regularMarketPrice: 150.25,
+        regularMarketChange: 2.50,
+        regularMarketChangePercent: 1.69,
+        regularMarketVolume: 50000000,
+        regularMarketPreviousClose: 147.75,
+        regularMarketOpen: 148.00,
+        regularMarketDayHigh: 151.00,
+        regularMarketDayLow: 147.50,
+        regularMarketTime: new Date('2024-01-10T16:00:00Z'),
+        currency: 'USD',
+        fullExchangeName: 'NASDAQ',
+        shortName: 'Apple Inc.',
+        marketCap: 2500000000000
+      })
+
       const result = await getStockQuote('AAPL')
       
       expect(result.success).toBe(true)
@@ -166,6 +197,36 @@ describe('API Functions', () => {
 
   describe('getCompanyOverview', () => {
     it('should return company overview for valid symbol', async () => {
+      // Mock Yahoo Finance quote response first
+      mockYahooFinance.quote.mockResolvedValue({
+        symbol: 'AAPL',
+        shortName: 'Apple Inc.',
+        longName: 'Apple Inc.',
+        currency: 'USD',
+        fullExchangeName: 'NASDAQ',
+        marketCap: 3000000000000
+      })
+      
+      // Mock Yahoo Finance quoteSummary response
+      mockYahooFinance.quoteSummary.mockResolvedValue({
+        summaryProfile: {
+          sector: 'Technology',
+          industry: 'Consumer Electronics',
+          country: 'United States',
+          longBusinessSummary: 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.'
+        },
+        summaryDetail: {
+          marketCap: { raw: 3000000000000 },
+          trailingPE: 25.5,
+          forwardPE: 23.0
+        },
+        defaultKeyStatistics: {
+          trailingEps: 5.89,
+          pegRatio: 1.2
+        },
+        financialData: {}
+      })
+
       const result = await getCompanyOverview('AAPL')
       
       expect(result.success).toBe(true)
@@ -183,6 +244,7 @@ describe('API Functions', () => {
 
     it('should handle invalid symbol', async () => {
       mockYahooFinance.quote.mockResolvedValueOnce(null)
+      mockYahooFinance.quoteSummary.mockResolvedValueOnce({})
       
       const result = await getCompanyOverview('INVALID')
       
@@ -192,6 +254,7 @@ describe('API Functions', () => {
 
     it('should handle API errors', async () => {
       mockYahooFinance.quote.mockRejectedValueOnce(new Error('API Error'))
+      mockYahooFinance.quoteSummary.mockRejectedValueOnce(new Error('API Error'))
       
       const result = await getCompanyOverview('AAPL')
       
@@ -200,6 +263,34 @@ describe('API Functions', () => {
     })
 
     it('should map financial metrics correctly', async () => {
+      // Mock Yahoo Finance quote response first
+      mockYahooFinance.quote.mockResolvedValue({
+        symbol: 'AAPL',
+        shortName: 'Apple Inc.',
+        currency: 'USD',
+        marketCap: 3000000000000
+      })
+      
+      // Mock Yahoo Finance quoteSummary response with financial metrics
+      mockYahooFinance.quoteSummary.mockResolvedValue({
+        summaryProfile: {
+          sector: 'Technology',
+          industry: 'Consumer Electronics',
+          country: 'United States',
+          longBusinessSummary: 'Apple Inc. description'
+        },
+        summaryDetail: {
+          marketCap: { raw: 3000000000000 },
+          trailingPE: 25.5,
+          forwardPE: 23.0
+        },
+        defaultKeyStatistics: {
+          trailingEps: 5.89,
+          pegRatio: 1.2
+        },
+        financialData: {}
+      })
+
       const result = await getCompanyOverview('AAPL')
       
       expect(result.success).toBe(true)
@@ -212,6 +303,26 @@ describe('API Functions', () => {
 
   describe('getStockChart', () => {
     it('should return chart data for valid symbol and time range', async () => {
+      // Mock Yahoo Finance historical response
+      mockYahooFinance.historical.mockResolvedValue([
+        {
+          date: new Date('2024-01-09'),
+          open: 148.00,
+          high: 151.00,
+          low: 147.50,
+          close: 150.25,
+          volume: 50000000
+        },
+        {
+          date: new Date('2024-01-10'),
+          open: 150.25,
+          high: 152.00,
+          low: 149.00,
+          close: 151.50,
+          volume: 45000000
+        }
+      ])
+
       const result = await getStockChart('AAPL', '1D')
       
       expect(result.success).toBe(true)
@@ -228,6 +339,18 @@ describe('API Functions', () => {
     })
 
     it('should handle different time ranges', async () => {
+      // Mock historical data for all time ranges
+      mockYahooFinance.historical.mockResolvedValue([
+        {
+          date: new Date('2024-01-09'),
+          open: 148.00,
+          high: 151.00,
+          low: 147.50,
+          close: 150.25,
+          volume: 50000000
+        }
+      ])
+
       const timeRanges = ['1D', '5D', '1M', '3M', '6M', '1Y', '5Y', 'MAX'] as const
       
       for (const timeRange of timeRanges) {
@@ -256,6 +379,18 @@ describe('API Functions', () => {
     })
 
     it('should format chart data correctly', async () => {
+      // Mock historical data for format testing
+      mockYahooFinance.historical.mockResolvedValue([
+        {
+          date: new Date('2024-01-09'),
+          open: 148.00,
+          high: 151.00,
+          low: 147.50,
+          close: 150.25,
+          volume: 50000000
+        }
+      ])
+
       const result = await getStockChart('AAPL', '1D')
       
       expect(result.success).toBe(true)

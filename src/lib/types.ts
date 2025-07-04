@@ -207,6 +207,7 @@ export interface StockStore {
   isDarkMode: boolean
   addToWatchlist: (item: WatchlistItem) => void
   removeFromWatchlist: (symbol: string) => void
+  clearWatchlist: () => void
   addRecentSearch: (symbol: string) => void
   clearRecentSearches: () => void
   setTimeRange: (range: TimeRange) => void

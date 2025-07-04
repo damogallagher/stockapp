@@ -35,6 +35,10 @@ export const useStockStore = create<StockStore>()(
         set({ recentSearches: [] })
       },
       
+      clearWatchlist: () => {
+        set({ watchlist: [] })
+      },
+      
       setTimeRange: (range: TimeRange) => {
         set({ selectedTimeRange: range })
       },

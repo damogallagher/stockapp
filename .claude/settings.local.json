@@ -18,7 +18,9 @@
       "Bash(git push:*)",
       "Bash(npm run test:*)",
       "Bash(npx playwright:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep:*)",
+      "Bash(npm test:*)"
     ],
     "deny": []
   }

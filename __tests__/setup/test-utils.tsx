@@ -126,7 +126,8 @@ export const createMockWatchlistItem = (overrides = {}) => ({
 // Mock store with custom values
 export const mockStoreWith = (overrides: Partial<StockStore>) => {
   const mockStore = { ...mockStoreValues, ...overrides }
-  require('@/lib/store').useStockStore.mockReturnValue(mockStore)
+  const { useStockStore } = require('@/lib/store')
+  useStockStore.mockReturnValue(mockStore)
   return mockStore
 }
 

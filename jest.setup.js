@@ -5,10 +5,43 @@ import { TextEncoder, TextDecoder } from 'util'
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
+// Polyfill TransformStream for Node.js
+global.TransformStream = class TransformStream {
+  constructor() {
+    this.readable = {}
+    this.writable = {}
+  }
+}
+
+// Polyfill BroadcastChannel for Node.js
+global.BroadcastChannel = class BroadcastChannel {
+  constructor(name) {
+    this.name = name
+  }
+  postMessage() {}
+  close() {}
+  addEventListener() {}
+  removeEventListener() {}
+}
+
+// Enhanced Response mock with json method
+const ResponseMock = jest.fn().mockImplementation((body, init) => ({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  headers: new Map(),
+  json: jest.fn().mockResolvedValue(body),
+  text: jest.fn().mockResolvedValue(JSON.stringify(body)),
+  ...init
+}))
+
+// Add static json method to Response
+ResponseMock.json = jest.fn((data, init) => new ResponseMock(data, init))
+
 // Mock fetch for Node.js environment
 global.fetch = jest.fn()
 global.Request = jest.fn()
-global.Response = jest.fn()
+global.Response = ResponseMock
 
 // Mock Next.js router
 jest.mock('next/router', () => ({
