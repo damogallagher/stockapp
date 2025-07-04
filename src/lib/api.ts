@@ -11,8 +11,8 @@ import {
   TimeRange 
 } from './types'
 
-const API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY
-const BASE_URL = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_BASE_URL || 'https://www.alphavantage.co/query'
+const API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY
+const BASE_URL = process.env.NEXT_PUBLIC_POLYGON_BASE_URL || 'https://api.polygon.io'
 
 class StockApiError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -47,50 +47,42 @@ export async function searchStocks(query: string): Promise<ApiResponse<StockSear
     if (!API_KEY) {
       return {
         data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    const url = `${BASE_URL}?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(query)}&apikey=${API_KEY}`
+    const url = `${BASE_URL}/v3/reference/tickers?search=${encodeURIComponent(query)}&active=true&market=stocks&limit=10&apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message']) {
+    if (data.status === 'ERROR') {
       return {
         data: [],
-        error: `API Error: ${data['Error Message']}`,
+        error: `API Error: ${data.error}`,
         success: false
       }
     }
 
-    if (data.Note) {
-      return {
-        data: [],
-        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
-        success: false
-      }
-    }
-
-    const results: StockSearchResult[] = data.bestMatches?.map((match: any) => ({
-      symbol: match['1. symbol'],
-      name: match['2. name'],
-      type: match['3. type'],
-      region: match['4. region'],
-      marketOpen: match['5. marketOpen'],
-      marketClose: match['6. marketClose'],
-      timezone: match['7. timezone'],
-      currency: match['8. currency'],
-      matchScore: parseFloat(match['9. matchScore'])
-    })) || []
-
-    if (results.length === 0) {
+    if (!data.results || data.results.length === 0) {
       return {
         data: [],
         error: `No stocks found matching "${query}". Try a different search term.`,
         success: false
       }
     }
+
+    const results: StockSearchResult[] = data.results.map((ticker: any) => ({
+      symbol: ticker.ticker,
+      name: ticker.name,
+      type: ticker.type || 'CS', // Common Stock
+      region: 'United States',
+      marketOpen: ticker.market === 'stocks' ? '09:30' : '09:30',
+      marketClose: ticker.market === 'stocks' ? '16:00' : '16:00',
+      timezone: 'UTC-05', // EST
+      currency: ticker.currency_name || 'USD',
+      matchScore: 0.9 // Polygon doesn't provide match score
+    }))
 
     return {
       data: results,
@@ -111,33 +103,39 @@ export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQu
     if (!API_KEY) {
       return {
         data: {} as StockQuote,
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    const url = `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`
+    // Use aggregates endpoint for recent data (works with free tier)
+    // Get last 2 days of data to calculate change
+    const today = new Date()
+    const threeDaysAgo = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)
+    const from = threeDaysAgo.toISOString().split('T')[0]
+    const to = today.toISOString().split('T')[0]
+    
+    const url = `${BASE_URL}/v2/aggs/ticker/${symbol}/range/1/day/${from}/${to}?adjusted=true&sort=desc&limit=5&apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message']) {
+    if (data.status === 'ERROR') {
       return {
         data: {} as StockQuote,
-        error: `API Error: ${data['Error Message']}`,
+        error: `API Error: ${data.error}`,
         success: false
       }
     }
 
-    if (data.Note) {
+    if (data.status === 'NOT_AUTHORIZED') {
       return {
         data: {} as StockQuote,
-        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        error: 'Real-time data requires a paid Polygon.io plan. Showing historical data instead.',
         success: false
       }
     }
 
-    const quote = data['Global Quote']
-    if (!quote || Object.keys(quote).length === 0) {
+    if (!data.results || data.results.length === 0) {
       return {
         data: {} as StockQuote,
         error: `No stock data found for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -145,22 +143,31 @@ export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQu
       }
     }
 
-    const result: StockQuote = {
-      symbol: quote['01. symbol'],
-      price: parseFloat(quote['05. price']),
-      change: parseFloat(quote['09. change']),
-      changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-      volume: parseInt(quote['06. volume']),
-      previousClose: parseFloat(quote['08. previous close']),
-      open: parseFloat(quote['02. open']),
-      high: parseFloat(quote['03. high']),
-      low: parseFloat(quote['04. low']),
-      marketCap: 0, // Not available in this endpoint
-      lastUpdated: quote['07. latest trading day']
+    // Get the most recent day's data and previous day for comparison
+    const recent = data.results[0] // Most recent day
+    const previous = data.results[1] || recent // Previous day or same if only one day
+
+    const currentPrice = recent.c
+    const previousClose = previous.c
+    const change = currentPrice - previousClose
+    const changePercent = previousClose ? (change / previousClose) * 100 : 0
+
+    const quote: StockQuote = {
+      symbol: symbol.toUpperCase(),
+      price: Number(currentPrice.toFixed(2)),
+      change: Number(change.toFixed(2)),
+      changePercent: Number(changePercent.toFixed(2)),
+      volume: recent.v,
+      previousClose: Number(previousClose.toFixed(2)),
+      open: recent.o,
+      high: recent.h,
+      low: recent.l,
+      marketCap: 0, // Not available in aggregates endpoint
+      lastUpdated: new Date(recent.t).toISOString().split('T')[0]
     }
 
     return {
-      data: result,
+      data: quote,
       error: null,
       success: true
     }
@@ -178,32 +185,24 @@ export async function getCompanyOverview(symbol: string): Promise<ApiResponse<Co
     if (!API_KEY) {
       return {
         data: {} as CompanyOverview,
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    const url = `${BASE_URL}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`
+    const url = `${BASE_URL}/v3/reference/tickers/${symbol}?apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message']) {
+    if (data.status === 'ERROR') {
       return {
         data: {} as CompanyOverview,
-        error: `API Error: ${data['Error Message']}`,
+        error: `API Error: ${data.error}`,
         success: false
       }
     }
 
-    if (data.Note) {
-      return {
-        data: {} as CompanyOverview,
-        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
-        success: false
-      }
-    }
-
-    if (!data.Symbol) {
+    if (!data.results) {
       return {
         data: {} as CompanyOverview,
         error: `No company data found for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -211,52 +210,55 @@ export async function getCompanyOverview(symbol: string): Promise<ApiResponse<Co
       }
     }
 
+    const ticker = data.results
+    const address = ticker.address || {}
+
     const result: CompanyOverview = {
-      symbol: data.Symbol,
-      name: data.Name,
-      description: data.Description,
-      cik: data.CIK,
-      exchange: data.Exchange,
-      currency: data.Currency,
-      country: data.Country,
-      sector: data.Sector,
-      industry: data.Industry,
-      address: data.Address,
-      fiscalYearEnd: data.FiscalYearEnd,
-      latestQuarter: data.LatestQuarter,
-      marketCapitalization: parseFloat(data.MarketCapitalization) || 0,
-      ebitda: parseFloat(data.EBITDA) || 0,
-      peRatio: parseFloat(data.PERatio) || 0,
-      pegRatio: parseFloat(data.PEGRatio) || 0,
-      bookValue: parseFloat(data.BookValue) || 0,
-      dividendPerShare: parseFloat(data.DividendPerShare) || 0,
-      dividendYield: parseFloat(data.DividendYield) || 0,
-      eps: parseFloat(data.EPS) || 0,
-      revenuePerShareTTM: parseFloat(data.RevenuePerShareTTM) || 0,
-      profitMargin: parseFloat(data.ProfitMargin) || 0,
-      operatingMarginTTM: parseFloat(data.OperatingMarginTTM) || 0,
-      returnOnAssetsTTM: parseFloat(data.ReturnOnAssetsTTM) || 0,
-      returnOnEquityTTM: parseFloat(data.ReturnOnEquityTTM) || 0,
-      revenueTTM: parseFloat(data.RevenueTTM) || 0,
-      grossProfitTTM: parseFloat(data.GrossProfitTTM) || 0,
-      dilutedEPSTTM: parseFloat(data.DilutedEPSTTM) || 0,
-      quarterlyEarningsGrowthYOY: parseFloat(data.QuarterlyEarningsGrowthYOY) || 0,
-      quarterlyRevenueGrowthYOY: parseFloat(data.QuarterlyRevenueGrowthYOY) || 0,
-      analystTargetPrice: parseFloat(data.AnalystTargetPrice) || 0,
-      trailingPE: parseFloat(data.TrailingPE) || 0,
-      forwardPE: parseFloat(data.ForwardPE) || 0,
-      priceToSalesRatioTTM: parseFloat(data.PriceToSalesRatioTTM) || 0,
-      priceToBookRatio: parseFloat(data.PriceToBookRatio) || 0,
-      evToRevenue: parseFloat(data.EVToRevenue) || 0,
-      evToEbitda: parseFloat(data.EVToEBITDA) || 0,
-      beta: parseFloat(data.Beta) || 0,
-      high52Week: parseFloat(data['52WeekHigh']) || 0,
-      low52Week: parseFloat(data['52WeekLow']) || 0,
-      movingAverage50Day: parseFloat(data['50DayMovingAverage']) || 0,
-      movingAverage200Day: parseFloat(data['200DayMovingAverage']) || 0,
-      sharesOutstanding: parseFloat(data.SharesOutstanding) || 0,
-      dividendDate: data.DividendDate,
-      exDividendDate: data.ExDividendDate
+      symbol: ticker.ticker,
+      name: ticker.name,
+      description: ticker.description || `${ticker.name} is a publicly traded company.`,
+      cik: ticker.cik || '',
+      exchange: ticker.primary_exchange || '',
+      currency: ticker.currency_name || 'USD',
+      country: 'United States',
+      sector: ticker.sic_description || '',
+      industry: ticker.sic_description || '',
+      address: `${address.address1 || ''} ${address.city || ''} ${address.state || ''}`.trim(),
+      fiscalYearEnd: '',
+      latestQuarter: '',
+      marketCapitalization: ticker.market_cap || 0,
+      ebitda: 0, // Not available in basic ticker details
+      peRatio: 0,
+      pegRatio: 0,
+      bookValue: 0,
+      dividendPerShare: 0,
+      dividendYield: 0,
+      eps: 0,
+      revenuePerShareTTM: 0,
+      profitMargin: 0,
+      operatingMarginTTM: 0,
+      returnOnAssetsTTM: 0,
+      returnOnEquityTTM: 0,
+      revenueTTM: 0,
+      grossProfitTTM: 0,
+      dilutedEPSTTM: 0,
+      quarterlyEarningsGrowthYOY: 0,
+      quarterlyRevenueGrowthYOY: 0,
+      analystTargetPrice: 0,
+      trailingPE: 0,
+      forwardPE: 0,
+      priceToSalesRatioTTM: 0,
+      priceToBookRatio: 0,
+      evToRevenue: 0,
+      evToEbitda: 0,
+      beta: 0,
+      high52Week: 0,
+      low52Week: 0,
+      movingAverage50Day: 0,
+      movingAverage200Day: 0,
+      sharesOutstanding: ticker.share_class_shares_outstanding || 0,
+      dividendDate: '',
+      exDividendDate: ''
     }
 
     return {
@@ -278,71 +280,77 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
     if (!API_KEY) {
       return {
         data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    let functionName = 'TIME_SERIES_DAILY'
-    let outputSize = 'compact'
+    // Calculate date range and timespan based on timeRange
+    const now = new Date()
+    let from: string
+    let multiplier = 1
+    let timespan = 'day'
 
     switch (timeRange) {
       case '1D':
-        functionName = 'TIME_SERIES_INTRADAY'
+        timespan = 'minute'
+        multiplier = 5
+        from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         break
       case '5D':
-        functionName = 'TIME_SERIES_DAILY'
-        outputSize = 'compact'
+        timespan = 'hour'
+        multiplier = 1
+        from = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         break
       case '1M':
+        timespan = 'day'
+        multiplier = 1
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
       case '3M':
+        timespan = 'day'
+        multiplier = 1
+        from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
       case '6M':
-        functionName = 'TIME_SERIES_DAILY'
-        outputSize = 'full'
+        timespan = 'day'
+        multiplier = 1
+        from = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         break
       case '1Y':
-      case '5Y':
-      case 'MAX':
-        functionName = 'TIME_SERIES_WEEKLY'
-        outputSize = 'full'
+        timespan = 'week'
+        multiplier = 1
+        from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         break
+      case '5Y':
+        timespan = 'month'
+        multiplier = 1
+        from = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      case 'MAX':
+        timespan = 'month'
+        multiplier = 1
+        from = new Date(now.getTime() - 10 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      default:
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     }
 
-    let url = `${BASE_URL}?function=${functionName}&symbol=${symbol}&outputsize=${outputSize}&apikey=${API_KEY}`
+    const to = now.toISOString().split('T')[0]
+    const url = `${BASE_URL}/v2/aggs/ticker/${symbol}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&apikey=${API_KEY}`
     
-    if (functionName === 'TIME_SERIES_INTRADAY') {
-      url += '&interval=5min'
-    }
-
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message']) {
+    if (data.status === 'ERROR') {
       return {
         data: [],
-        error: `API Error: ${data['Error Message']}`,
+        error: `API Error: ${data.error}`,
         success: false
       }
     }
 
-    if (data.Note) {
-      return {
-        data: [],
-        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
-        success: false
-      }
-    }
-
-    let timeSeries: any = null
-    if (functionName === 'TIME_SERIES_INTRADAY') {
-      timeSeries = data['Time Series (5min)']
-    } else if (functionName === 'TIME_SERIES_DAILY') {
-      timeSeries = data['Time Series (Daily)']
-    } else if (functionName === 'TIME_SERIES_WEEKLY') {
-      timeSeries = data['Weekly Time Series']
-    }
-
-    if (!timeSeries) {
+    if (!data.results || data.results.length === 0) {
       return {
         data: [],
         error: `No chart data available for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -350,65 +358,17 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
       }
     }
 
-    const chartData: ChartData[] = Object.entries(timeSeries)
-      .map(([date, values]: [string, any]) => ({
-        date,
-        open: parseFloat(values['1. open']),
-        high: parseFloat(values['2. high']),
-        low: parseFloat(values['3. low']),
-        close: parseFloat(values['4. close']),
-        volume: parseInt(values['5. volume'])
-      }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-    // Filter data based on time range
-    const now = new Date()
-    let filteredData = chartData
-
-    switch (timeRange) {
-      case '1D':
-        // Keep only today's data
-        filteredData = chartData.filter(item => 
-          new Date(item.date).toDateString() === now.toDateString()
-        )
-        break
-      case '5D':
-        // Keep last 5 trading days
-        filteredData = chartData.slice(-5)
-        break
-      case '1M':
-        // Keep last 30 days
-        const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        filteredData = chartData.filter(item => new Date(item.date) >= oneMonthAgo)
-        break
-      case '3M':
-        // Keep last 90 days
-        const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-        filteredData = chartData.filter(item => new Date(item.date) >= threeMonthsAgo)
-        break
-      case '6M':
-        // Keep last 180 days
-        const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
-        filteredData = chartData.filter(item => new Date(item.date) >= sixMonthsAgo)
-        break
-      case '1Y':
-        // Keep last 365 days
-        const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-        filteredData = chartData.filter(item => new Date(item.date) >= oneYearAgo)
-        break
-      case '5Y':
-        // Keep last 5 years
-        const fiveYearsAgo = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000)
-        filteredData = chartData.filter(item => new Date(item.date) >= fiveYearsAgo)
-        break
-      case 'MAX':
-        // Keep all data
-        filteredData = chartData
-        break
-    }
+    const chartData: ChartData[] = data.results.map((bar: any) => ({
+      date: new Date(bar.t).toISOString().split('T')[0],
+      open: Number(bar.o.toFixed(2)),
+      high: Number(bar.h.toFixed(2)),
+      low: Number(bar.l.toFixed(2)),
+      close: Number(bar.c.toFixed(2)),
+      volume: bar.v
+    }))
 
     return {
-      data: filteredData,
+      data: chartData,
       error: null,
       success: true
     }
@@ -426,58 +386,55 @@ export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsIt
     if (!API_KEY) {
       return {
         data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    let url = `${BASE_URL}?function=NEWS_SENTIMENT&apikey=${API_KEY}`
+    let url = `${BASE_URL}/v2/reference/news?limit=20&order=desc&sort=published_utc&apikey=${API_KEY}`
     if (symbol) {
-      url += `&tickers=${symbol}`
+      url += `&ticker=${symbol}`
     }
 
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message']) {
+    if (data.status === 'ERROR') {
       return {
         data: [],
-        error: `API Error: ${data['Error Message']}`,
+        error: `API Error: ${data.error}`,
         success: false
       }
     }
 
-    if (data.Note) {
-      return {
-        data: [],
-        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
-        success: false
-      }
-    }
-
-    const newsItems: NewsItem[] = data.feed?.slice(0, 20).map((item: any) => ({
-      title: item.title,
-      url: item.url,
-      time_published: item.time_published,
-      authors: item.authors,
-      summary: item.summary,
-      banner_image: item.banner_image,
-      source: item.source,
-      category_within_source: item.category_within_source,
-      source_domain: item.source_domain,
-      topics: item.topics || [],
-      overall_sentiment_score: item.overall_sentiment_score,
-      overall_sentiment_label: item.overall_sentiment_label,
-      ticker_sentiment: item.ticker_sentiment || []
-    })) || []
-
-    if (newsItems.length === 0) {
+    if (!data.results || data.results.length === 0) {
       return {
         data: [],
         error: `No news found${symbol ? ` for symbol "${symbol}"` : ''}. Please try again later.`,
         success: false
       }
     }
+
+    const newsItems: NewsItem[] = data.results.map((item: any) => ({
+      title: item.title,
+      url: item.article_url,
+      time_published: item.published_utc,
+      authors: item.author ? [item.author] : [],
+      summary: item.description || item.title,
+      banner_image: item.image_url,
+      source: item.publisher?.name || 'Unknown',
+      category_within_source: item.category || '',
+      source_domain: item.publisher?.homepage_url || '',
+      topics: item.keywords || [],
+      overall_sentiment_score: 0, // Polygon doesn't provide sentiment by default
+      overall_sentiment_label: 'Neutral',
+      ticker_sentiment: item.tickers?.map((ticker: string) => ({
+        ticker,
+        relevance_score: 0.5,
+        ticker_sentiment_score: 0,
+        ticker_sentiment_label: 'Neutral'
+      })) || []
+    }))
 
     return {
       data: newsItems,
@@ -498,18 +455,66 @@ export async function getMarketIndices(): Promise<ApiResponse<MarketIndex[]>> {
     if (!API_KEY) {
       return {
         data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
         success: false
       }
     }
 
-    // Alpha Vantage doesn't have a direct market indices endpoint in the free tier
-    // We would need to make multiple calls to get index data
-    // For now, return an error message explaining the limitation
+    // Polygon.io free tier - use major ETFs that track indices
+    const indexInfo = [
+      { symbol: 'SPY', name: 'S&P 500' },
+      { symbol: 'QQQ', name: 'NASDAQ-100' },
+      { symbol: 'DIA', name: 'Dow Jones' }
+    ]
+
+    const results: MarketIndex[] = []
+    const today = new Date()
+    const threeDaysAgo = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)
+    const from = threeDaysAgo.toISOString().split('T')[0]
+    const to = today.toISOString().split('T')[0]
+
+    for (const index of indexInfo) {
+      try {
+        const url = `${BASE_URL}/v2/aggs/ticker/${index.symbol}/range/1/day/${from}/${to}?adjusted=true&sort=desc&limit=5&apikey=${API_KEY}`
+        const response = await fetchWithRetry(url)
+        const data = await response.json()
+
+        if (data.status === 'OK' && data.results && data.results.length > 0) {
+          const recent = data.results[0]
+          const previous = data.results[1] || recent
+
+          const currentPrice = recent.c
+          const previousClose = previous.c
+          const change = currentPrice - previousClose
+          const changePercent = previousClose ? (change / previousClose) * 100 : 0
+
+          results.push({
+            symbol: index.symbol,
+            name: index.name,
+            price: Number(currentPrice.toFixed(2)),
+            change: Number(change.toFixed(2)),
+            changePercent: Number(changePercent.toFixed(2)),
+            lastUpdated: new Date(recent.t).toISOString().split('T')[0]
+          })
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch data for ${index.symbol}:`, error)
+        // Continue with other indices
+      }
+    }
+
+    if (results.length === 0) {
+      return {
+        data: [],
+        error: 'Unable to fetch market indices data. Please try again later.',
+        success: false
+      }
+    }
+
     return {
-      data: [],
-      error: 'Market indices are not available in the Alpha Vantage free tier. Please upgrade to a paid plan or configure a different data source.',
-      success: false
+      data: results,
+      error: null,
+      success: true
     }
   } catch (error) {
     return {
