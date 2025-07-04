@@ -10,14 +10,6 @@ import {
   ApiResponse,
   TimeRange 
 } from './types'
-import {
-  searchStocksFallback,
-  getStockQuoteFallback,
-  getCompanyOverviewFallback,
-  getStockChartFallback,
-  getMarketNewsFallback,
-  getMarketIndicesFallback
-} from './api-fallback'
 
 const API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY
 const BASE_URL = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_BASE_URL || 'https://www.alphavantage.co/query'
@@ -53,17 +45,31 @@ async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<R
 export async function searchStocks(query: string): Promise<ApiResponse<StockSearchResult[]>> {
   try {
     if (!API_KEY) {
-      console.warn('API key not configured, using fallback data')
-      return await searchStocksFallback(query)
+      return {
+        data: [],
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
     }
 
     const url = `${BASE_URL}?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(query)}&apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message'] || data.Note) {
-      console.warn('API limit reached or error, using fallback data:', data)
-      return await searchStocksFallback(query)
+    if (data['Error Message']) {
+      return {
+        data: [],
+        error: `API Error: ${data['Error Message']}`,
+        success: false
+      }
+    }
+
+    if (data.Note) {
+      return {
+        data: [],
+        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        success: false
+      }
     }
 
     const results: StockSearchResult[] = data.bestMatches?.map((match: any) => ({
@@ -78,37 +84,65 @@ export async function searchStocks(query: string): Promise<ApiResponse<StockSear
       matchScore: parseFloat(match['9. matchScore'])
     })) || []
 
+    if (results.length === 0) {
+      return {
+        data: [],
+        error: `No stocks found matching "${query}". Try a different search term.`,
+        success: false
+      }
+    }
+
     return {
       data: results,
       error: null,
       success: true
     }
   } catch (error) {
-    console.warn('API error, using fallback data:', error)
-    return await searchStocksFallback(query)
+    return {
+      data: [],
+      error: error instanceof Error ? error.message : 'Network error occurred while searching stocks',
+      success: false
+    }
   }
 }
 
 export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQuote>> {
   try {
     if (!API_KEY) {
-      console.warn('API key not configured, using fallback data')
-      return await getStockQuoteFallback(symbol)
+      return {
+        data: {} as StockQuote,
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
     }
 
     const url = `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message'] || data.Note) {
-      console.warn('API limit reached or error, using fallback data:', data)
-      return await getStockQuoteFallback(symbol)
+    if (data['Error Message']) {
+      return {
+        data: {} as StockQuote,
+        error: `API Error: ${data['Error Message']}`,
+        success: false
+      }
+    }
+
+    if (data.Note) {
+      return {
+        data: {} as StockQuote,
+        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        success: false
+      }
     }
 
     const quote = data['Global Quote']
     if (!quote || Object.keys(quote).length === 0) {
-      console.warn('No data found, using fallback data')
-      return await getStockQuoteFallback(symbol)
+      return {
+        data: {} as StockQuote,
+        error: `No stock data found for symbol "${symbol}". Please verify the symbol is correct.`,
+        success: false
+      }
     }
 
     const result: StockQuote = {
@@ -131,30 +165,50 @@ export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQu
       success: true
     }
   } catch (error) {
-    console.warn('API error, using fallback data:', error)
-    return await getStockQuoteFallback(symbol)
+    return {
+      data: {} as StockQuote,
+      error: error instanceof Error ? error.message : 'Network error occurred while fetching stock quote',
+      success: false
+    }
   }
 }
 
 export async function getCompanyOverview(symbol: string): Promise<ApiResponse<CompanyOverview>> {
   try {
     if (!API_KEY) {
-      console.warn('API key not configured, using fallback data')
-      return await getCompanyOverviewFallback(symbol)
+      return {
+        data: {} as CompanyOverview,
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
     }
 
     const url = `${BASE_URL}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message'] || data.Note) {
-      console.warn('API limit reached or error, using fallback data:', data)
-      return await getCompanyOverviewFallback(symbol)
+    if (data['Error Message']) {
+      return {
+        data: {} as CompanyOverview,
+        error: `API Error: ${data['Error Message']}`,
+        success: false
+      }
+    }
+
+    if (data.Note) {
+      return {
+        data: {} as CompanyOverview,
+        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        success: false
+      }
     }
 
     if (!data.Symbol) {
-      console.warn('No company data found, using fallback data')
-      return await getCompanyOverviewFallback(symbol)
+      return {
+        data: {} as CompanyOverview,
+        error: `No company data found for symbol "${symbol}". Please verify the symbol is correct.`,
+        success: false
+      }
     }
 
     const result: CompanyOverview = {
@@ -211,16 +265,22 @@ export async function getCompanyOverview(symbol: string): Promise<ApiResponse<Co
       success: true
     }
   } catch (error) {
-    console.warn('API error, using fallback data:', error)
-    return await getCompanyOverviewFallback(symbol)
+    return {
+      data: {} as CompanyOverview,
+      error: error instanceof Error ? error.message : 'Network error occurred while fetching company overview',
+      success: false
+    }
   }
 }
 
 export async function getStockChart(symbol: string, timeRange: TimeRange): Promise<ApiResponse<ChartData[]>> {
   try {
     if (!API_KEY) {
-      console.warn('API key not configured, using fallback data')
-      return await getStockChartFallback(symbol, timeRange)
+      return {
+        data: [],
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
     }
 
     let functionName = 'TIME_SERIES_DAILY'
@@ -257,9 +317,20 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message'] || data.Note) {
-      console.warn('API limit reached or error, using fallback data:', data)
-      return await getStockChartFallback(symbol, timeRange)
+    if (data['Error Message']) {
+      return {
+        data: [],
+        error: `API Error: ${data['Error Message']}`,
+        success: false
+      }
+    }
+
+    if (data.Note) {
+      return {
+        data: [],
+        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        success: false
+      }
     }
 
     let timeSeries: any = null
@@ -272,8 +343,11 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
     }
 
     if (!timeSeries) {
-      console.warn('No chart data available, using fallback data')
-      return await getStockChartFallback(symbol, timeRange)
+      return {
+        data: [],
+        error: `No chart data available for symbol "${symbol}". Please verify the symbol is correct.`,
+        success: false
+      }
     }
 
     const chartData: ChartData[] = Object.entries(timeSeries)
@@ -339,16 +413,22 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
       success: true
     }
   } catch (error) {
-    console.warn('API error, using fallback data:', error)
-    return await getStockChartFallback(symbol, timeRange)
+    return {
+      data: [],
+      error: error instanceof Error ? error.message : 'Network error occurred while fetching stock chart',
+      success: false
+    }
   }
 }
 
 export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsItem[]>> {
   try {
     if (!API_KEY) {
-      console.warn('API key not configured, using fallback data')
-      return await getMarketNewsFallback(symbol)
+      return {
+        data: [],
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
     }
 
     let url = `${BASE_URL}?function=NEWS_SENTIMENT&apikey=${API_KEY}`
@@ -359,9 +439,20 @@ export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsIt
     const response = await fetchWithRetry(url)
     const data = await response.json()
 
-    if (data['Error Message'] || data.Note) {
-      console.warn('API limit reached or error, using fallback data:', data)
-      return await getMarketNewsFallback(symbol)
+    if (data['Error Message']) {
+      return {
+        data: [],
+        error: `API Error: ${data['Error Message']}`,
+        success: false
+      }
+    }
+
+    if (data.Note) {
+      return {
+        data: [],
+        error: 'API rate limit exceeded. Alpha Vantage free tier allows 5 calls per minute and 500 calls per day. Please wait and try again.',
+        success: false
+      }
     }
 
     const newsItems: NewsItem[] = data.feed?.slice(0, 20).map((item: any) => ({
@@ -380,25 +471,52 @@ export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsIt
       ticker_sentiment: item.ticker_sentiment || []
     })) || []
 
+    if (newsItems.length === 0) {
+      return {
+        data: [],
+        error: `No news found${symbol ? ` for symbol "${symbol}"` : ''}. Please try again later.`,
+        success: false
+      }
+    }
+
     return {
       data: newsItems,
       error: null,
       success: true
     }
   } catch (error) {
-    console.warn('API error, using fallback data:', error)
-    return await getMarketNewsFallback(symbol)
+    return {
+      data: [],
+      error: error instanceof Error ? error.message : 'Network error occurred while fetching market news',
+      success: false
+    }
   }
 }
 
-// Market indices using fallback data (Alpha Vantage free tier limitations)
 export async function getMarketIndices(): Promise<ApiResponse<MarketIndex[]>> {
   try {
-    // Use fallback data directly for better performance and reliability
-    return await getMarketIndicesFallback()
+    if (!API_KEY) {
+      return {
+        data: [],
+        error: 'API key not configured. Please add NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY to your environment variables.',
+        success: false
+      }
+    }
+
+    // Alpha Vantage doesn't have a direct market indices endpoint in the free tier
+    // We would need to make multiple calls to get index data
+    // For now, return an error message explaining the limitation
+    return {
+      data: [],
+      error: 'Market indices are not available in the Alpha Vantage free tier. Please upgrade to a paid plan or configure a different data source.',
+      success: false
+    }
   } catch (error) {
-    console.warn('Error getting market indices:', error)
-    return await getMarketIndicesFallback()
+    return {
+      data: [],
+      error: error instanceof Error ? error.message : 'Network error occurred while fetching market indices',
+      success: false
+    }
   }
 }
 

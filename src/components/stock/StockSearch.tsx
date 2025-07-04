@@ -52,7 +52,7 @@ export default function StockSearch({ onSelectStock, placeholder = "Search stock
   }, [])
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (query.length < 1) {
       setResults([])
       setError(null)
       return
@@ -64,6 +64,7 @@ export default function StockSearch({ onSelectStock, placeholder = "Search stock
       
       try {
         const response = await searchStocks(query)
+        
         if (response.success) {
           setResults(response.data)
         } else {
@@ -99,7 +100,7 @@ export default function StockSearch({ onSelectStock, placeholder = "Search stock
   }
 
   const showSuggestions = showResults && query.length === 0
-  const showSearchResults = showResults && query.length >= 2
+  const showSearchResults = showResults && query.length >= 1
 
   return (
     <div ref={searchRef} className={`relative ${className}`}>
