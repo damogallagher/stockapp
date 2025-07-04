@@ -227,7 +227,7 @@ describe('Stock Data Hooks', () => {
 
       expect(mockApi.getStockChart).toHaveBeenCalledWith('AAPL', '1D')
 
-      rerender({ timeRange: '1M' as const })
+      rerender({ timeRange: '1D' as const })
 
       expect(result.current.loading).toBe(true)
 

@@ -16,6 +16,7 @@ const mockStoreValues: StockStore = {
   setTimeRange: jest.fn(),
   setChartType: jest.fn(),
   toggleDarkMode: jest.fn(),
+  clearWatchlist: jest.fn(),
 }
 
 // Mock the store hook

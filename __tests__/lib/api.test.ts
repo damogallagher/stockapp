@@ -9,11 +9,12 @@ jest.mock('yahoo-finance2', () => ({
 }))
 
 const mockYahooFinance = require('yahoo-finance2')
+const mockYahooFinanceAttribute = jest.fn()
 
 beforeEach(() => {
   jest.clearAllMocks()
   // Reset mock implementations
-  Object.values(mockYahooFinance).forEach(mock => mock.mockReset())
+  Object.values(mockYahooFinance).forEach(mock => mockYahooFinanceAttribute.mockReset())
 })
 
 describe('API Functions', () => {
