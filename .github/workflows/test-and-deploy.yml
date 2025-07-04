@@ -1,0 +1,337 @@
+name: Test & Deploy
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lint and Type Check
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run ESLint
+        run: npm run lint
+        
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run unit tests with coverage
+        run: npm run test:ci
+        
+      - name: Check coverage thresholds
+        run: |
+          # Extract coverage percentage from Jest output
+          COVERAGE=$(grep -oP 'All files\s+\|\s+\K\d+(?:\.\d+)?' coverage/lcov-report/index.html || echo "0")
+          echo "Coverage: $COVERAGE%"
+          
+          # Fail if coverage is below 90%
+          if (( $(echo "$COVERAGE < 90" | bc -l) )); then
+            echo "❌ Unit test coverage ($COVERAGE%) is below the required 90% threshold"
+            exit 1
+          else
+            echo "✅ Unit test coverage ($COVERAGE%) meets the 90% threshold"
+          fi
+        
+      - name: Upload unit test coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          flags: unit
+          name: unit-tests
+          fail_ci_if_error: false
+          
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            coverage/
+            test-results/
+            
+  # E2E Tests
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+        
+      - name: Build Next.js app
+        run: npm run build
+        
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          CI: true
+          
+      - name: Check E2E coverage thresholds
+        run: |
+          # Check if coverage report exists
+          if [ -f "coverage-e2e/lcov.info" ]; then
+            # Extract coverage percentage (simplified check)
+            COVERAGE=$(grep -oP 'LF:\K\d+' coverage-e2e/lcov.info | head -1 || echo "0")
+            COVERED=$(grep -oP 'LH:\K\d+' coverage-e2e/lcov.info | head -1 || echo "0")
+            
+            if [ "$COVERAGE" -gt 0 ]; then
+              PERCENTAGE=$(echo "scale=2; ($COVERED * 100) / $COVERAGE" | bc)
+              echo "E2E Coverage: $PERCENTAGE%"
+              
+              # Fail if coverage is below 80%
+              if (( $(echo "$PERCENTAGE < 80" | bc -l) )); then
+                echo "❌ E2E test coverage ($PERCENTAGE%) is below the required 80% threshold"
+                exit 1
+              else
+                echo "✅ E2E test coverage ($PERCENTAGE%) meets the 80% threshold"
+              fi
+            else
+              echo "⚠️ No E2E coverage data found, skipping coverage check"
+            fi
+          else
+            echo "⚠️ No E2E coverage report found, skipping coverage check"
+          fi
+        
+      - name: Upload E2E coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage-e2e/lcov.info
+          flags: e2e
+          name: e2e-tests
+          fail_ci_if_error: false
+          
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: |
+            test-results/
+            playwright-report/
+            coverage-e2e/
+            
+  # Build Application
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build for production
+        run: npm run build
+        env:
+          NODE_ENV: production
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: |
+            .next/
+            out/
+            public/
+          retention-days: 30
+
+  # Merge Coverage Reports
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download unit test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: ./unit-coverage/
+          
+      - name: Download E2E test coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: e2e-test-results
+          path: ./e2e-coverage/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install lcov tools
+        run: sudo apt-get update && sudo apt-get install -y lcov
+        
+      - name: Merge coverage reports
+        run: |
+          mkdir -p merged-coverage
+          
+          # Merge coverage files if they exist
+          if [ -f "unit-coverage/coverage/lcov.info" ] && [ -f "e2e-coverage/coverage-e2e/lcov.info" ]; then
+            lcov -a unit-coverage/coverage/lcov.info -a e2e-coverage/coverage-e2e/lcov.info -o merged-coverage/lcov.info
+            genhtml merged-coverage/lcov.info -o merged-coverage/html
+          elif [ -f "unit-coverage/coverage/lcov.info" ]; then
+            cp unit-coverage/coverage/lcov.info merged-coverage/lcov.info
+            cp -r unit-coverage/coverage/ merged-coverage/html
+          fi
+          
+      - name: Upload merged coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./merged-coverage/lcov.info
+          flags: merged
+          name: merged-coverage
+          fail_ci_if_error: false
+          
+      - name: Comment PR with coverage
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          recreate: true
+          message: |
+            ## 📊 Test Coverage Report
+            
+            | Test Type | Coverage | Status |
+            |-----------|----------|--------|
+            | Unit Tests | ![Unit Coverage](https://img.shields.io/codecov/c/github/${{ github.repository }}/main?flag=unit&label=Unit) | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | E2E Tests | ![E2E Coverage](https://img.shields.io/codecov/c/github/${{ github.repository }}/main?flag=e2e&label=E2E) | ${{ needs.e2e-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | Overall | ![Coverage](https://img.shields.io/codecov/c/github/${{ github.repository }}/main) | ![Build](https://img.shields.io/github/actions/workflow/status/${{ github.repository }}/test-and-deploy.yml) |
+            
+            **Thresholds:** Unit Tests ≥ 90%, E2E Tests ≥ 80%
+            
+            📈 [View detailed coverage report](https://codecov.io/gh/${{ github.repository }})
+
+  # Deploy to S3 (commented out - ready for future use)
+  # deploy-to-s3:
+  #   name: Deploy to S3
+  #   runs-on: ubuntu-latest
+  #   needs: [build]
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       
+  #     - name: Download build artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: build-files
+  #         
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ secrets.AWS_REGION }}
+  #         
+  #     - name: Deploy to S3
+  #       run: |
+  #         # Sync build files to S3 bucket
+  #         aws s3 sync ./out s3://${{ secrets.S3_BUCKET_NAME }} --delete
+  #         
+  #         # Invalidate CloudFront distribution
+  #         if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+  #           aws cloudfront create-invalidation \
+  #             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+  #             --paths "/*"
+  #         fi
+  #         
+  #     - name: Deployment summary
+  #       run: |
+  #         echo "🚀 Deployment completed successfully!"
+  #         echo "📦 Files synced to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
+  #         if [ -n "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+  #           echo "🔄 CloudFront cache invalidated for distribution: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
+  #         fi
+
+  # Summary Job
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests, build]
+    if: always()
+    
+    steps:
+      - name: Test Results Summary
+        run: |
+          echo "## 🧪 Test Results Summary"
+          echo "| Job | Status |"
+          echo "|-----|--------|"
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+          echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+          echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+          
+          # Fail if any critical tests failed
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]] || [[ "${{ needs.e2e-tests.result }}" != "success" ]] || [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Some tests failed - check the logs above"
+            exit 1
+          else
+            echo "✅ All tests passed successfully!"
+          fi
