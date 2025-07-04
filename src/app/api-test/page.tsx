@@ -8,33 +8,18 @@ export default function ApiTestPage() {
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
-  const testPolygonApi = async () => {
+  const testYahooFinanceApi = async () => {
     setLoading(true)
     try {
-      const apiKey = process.env.NEXT_PUBLIC_POLYGON_API_KEY
-      
-      if (!apiKey) {
-        setResult({ 
-          type: 'CONFIGURATION ERROR', 
-          error: 'API key not configured',
-          isRealData: false
-        })
-        return
-      }
-
-      // Test direct API call
-      const url = `https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2025-07-02/2025-07-04?adjusted=true&sort=desc&limit=5&apikey=${apiKey}`
-      
-      console.log('Testing Polygon.io API with URL:', url)
-      
-      const response = await fetch(url)
+      // Test Yahoo Finance API through our API layer
+      const response = await fetch('/api/test-yahoo-finance')
       const data = await response.json()
       
-      console.log('Polygon.io API Response:', data)
+      console.log('Yahoo Finance API Response:', data)
       setResult({ 
-        type: 'POLYGON.IO API', 
+        type: 'YAHOO FINANCE API', 
         data, 
-        isRealData: data.status === 'OK' || data.status === 'DELAYED'
+        isRealData: data.success === true
       })
     } catch (error) {
       console.error('API Error:', error)
@@ -48,19 +33,19 @@ export default function ApiTestPage() {
     <div className="container mx-auto p-8">
       <Card>
         <CardHeader>
-          <CardTitle>Polygon.io API Status Test</CardTitle>
+          <CardTitle>Yahoo Finance API Status Test</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <h3 className="font-semibold">Current Configuration:</h3>
             <div className="text-sm space-y-1 bg-gray-50 p-4 rounded">
-              <div><strong>API Key:</strong> {process.env.NEXT_PUBLIC_POLYGON_API_KEY ? 'Configured' : 'Not configured'}</div>
-              <div><strong>Base URL:</strong> {process.env.NEXT_PUBLIC_POLYGON_BASE_URL || 'https://api.polygon.io'}</div>
+              <div><strong>API Provider:</strong> Yahoo Finance (via yahoo-finance2)</div>
+              <div><strong>Status:</strong> No API key required</div>
             </div>
           </div>
 
-          <Button onClick={testPolygonApi} disabled={loading}>
-            {loading ? 'Testing...' : 'Test Polygon.io API'}
+          <Button onClick={testYahooFinanceApi} disabled={loading}>
+            {loading ? 'Testing...' : 'Test Yahoo Finance API'}
           </Button>
 
           {result && (

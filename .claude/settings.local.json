@@ -10,7 +10,10 @@
       "Bash(rm:*)",
       "WebFetch(domain:polygon.io)",
       "Bash(curl:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

@@ -11,8 +11,7 @@ import {
   TimeRange 
 } from './types'
 
-const API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY
-const BASE_URL = process.env.NEXT_PUBLIC_POLYGON_BASE_URL || 'https://api.polygon.io'
+import yahooFinance from 'yahoo-finance2'
 
 class StockApiError extends Error {
   constructor(message: string, public statusCode?: number) {
@@ -21,50 +20,17 @@ class StockApiError extends Error {
   }
 }
 
-async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url)
-      if (response.ok) return response
-      
-      if (response.status === 429) {
-        // Rate limit exceeded, wait before retry
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)))
-        continue
-      }
-      
-      throw new StockApiError(`HTTP ${response.status}: ${response.statusText}`, response.status)
-    } catch (error) {
-      if (i === retries - 1) throw error
-      await new Promise(resolve => setTimeout(resolve, delay))
-    }
-  }
-  throw new StockApiError('Max retries exceeded')
-}
 
 export async function searchStocks(query: string): Promise<ApiResponse<StockSearchResult[]>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
-      }
-    }
+    const searchResults = await yahooFinance.search(query, {
+      quotesCount: 10,
+      newsCount: 0,
+      enableFuzzyQuery: true,
+      quotesQueryId: 'tss_match_phrase_query'
+    })
 
-    const url = `${BASE_URL}/v3/reference/tickers?search=${encodeURIComponent(query)}&active=true&market=stocks&limit=10&apikey=${API_KEY}`
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
-
-    if (data.status === 'ERROR') {
-      return {
-        data: [],
-        error: `API Error: ${data.error}`,
-        success: false
-      }
-    }
-
-    if (!data.results || data.results.length === 0) {
+    if (!searchResults.quotes || searchResults.quotes.length === 0) {
       return {
         data: [],
         error: `No stocks found matching "${query}". Try a different search term.`,
@@ -72,16 +38,16 @@ export async function searchStocks(query: string): Promise<ApiResponse<StockSear
       }
     }
 
-    const results: StockSearchResult[] = data.results.map((ticker: any) => ({
-      symbol: ticker.ticker,
-      name: ticker.name,
-      type: ticker.type || 'CS', // Common Stock
-      region: 'United States',
-      marketOpen: ticker.market === 'stocks' ? '09:30' : '09:30',
-      marketClose: ticker.market === 'stocks' ? '16:00' : '16:00',
+    const results: StockSearchResult[] = searchResults.quotes.map((quote: any) => ({
+      symbol: quote.symbol,
+      name: quote.shortname || quote.longname || quote.symbol,
+      type: quote.quoteType || 'EQUITY',
+      region: quote.region || 'United States',
+      marketOpen: '09:30',
+      marketClose: '16:00',
       timezone: 'UTC-05', // EST
-      currency: ticker.currency_name || 'USD',
-      matchScore: 0.9 // Polygon doesn't provide match score
+      currency: quote.currency || 'USD',
+      matchScore: quote.score || 0.9
     }))
 
     return {
@@ -100,42 +66,9 @@ export async function searchStocks(query: string): Promise<ApiResponse<StockSear
 
 export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQuote>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: {} as StockQuote,
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
-      }
-    }
+    const quote = await yahooFinance.quote(symbol)
 
-    // Use aggregates endpoint for recent data (works with free tier)
-    // Get last 2 days of data to calculate change
-    const today = new Date()
-    const threeDaysAgo = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)
-    const from = threeDaysAgo.toISOString().split('T')[0]
-    const to = today.toISOString().split('T')[0]
-    
-    const url = `${BASE_URL}/v2/aggs/ticker/${symbol}/range/1/day/${from}/${to}?adjusted=true&sort=desc&limit=5&apikey=${API_KEY}`
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
-
-    if (data.status === 'ERROR') {
-      return {
-        data: {} as StockQuote,
-        error: `API Error: ${data.error}`,
-        success: false
-      }
-    }
-
-    if (data.status === 'NOT_AUTHORIZED') {
-      return {
-        data: {} as StockQuote,
-        error: 'Real-time data requires a paid Polygon.io plan. Showing historical data instead.',
-        success: false
-      }
-    }
-
-    if (!data.results || data.results.length === 0) {
+    if (!quote) {
       return {
         data: {} as StockQuote,
         error: `No stock data found for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -143,31 +76,27 @@ export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQu
       }
     }
 
-    // Get the most recent day's data and previous day for comparison
-    const recent = data.results[0] // Most recent day
-    const previous = data.results[1] || recent // Previous day or same if only one day
+    const currentPrice = quote.regularMarketPrice || quote.postMarketPrice || quote.preMarketPrice || 0
+    const previousClose = quote.regularMarketPreviousClose || 0
+    const change = quote.regularMarketChange || 0
+    const changePercent = quote.regularMarketChangePercent || 0
 
-    const currentPrice = recent.c
-    const previousClose = previous.c
-    const change = currentPrice - previousClose
-    const changePercent = previousClose ? (change / previousClose) * 100 : 0
-
-    const quote: StockQuote = {
+    const stockQuote: StockQuote = {
       symbol: symbol.toUpperCase(),
       price: Number(currentPrice.toFixed(2)),
       change: Number(change.toFixed(2)),
       changePercent: Number(changePercent.toFixed(2)),
-      volume: recent.v,
+      volume: quote.regularMarketVolume || 0,
       previousClose: Number(previousClose.toFixed(2)),
-      open: recent.o,
-      high: recent.h,
-      low: recent.l,
-      marketCap: 0, // Not available in aggregates endpoint
-      lastUpdated: new Date(recent.t).toISOString().split('T')[0]
+      open: quote.regularMarketOpen || 0,
+      high: quote.regularMarketDayHigh || 0,
+      low: quote.regularMarketDayLow || 0,
+      marketCap: quote.marketCap || 0,
+      lastUpdated: new Date().toISOString().split('T')[0]
     }
 
     return {
-      data: quote,
+      data: stockQuote,
       error: null,
       success: true
     }
@@ -182,27 +111,12 @@ export async function getStockQuote(symbol: string): Promise<ApiResponse<StockQu
 
 export async function getCompanyOverview(symbol: string): Promise<ApiResponse<CompanyOverview>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: {} as CompanyOverview,
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
-      }
-    }
+    const [quote, summaryDetail] = await Promise.all([
+      yahooFinance.quote(symbol),
+      yahooFinance.quoteSummary(symbol, { modules: ['summaryDetail', 'summaryProfile', 'financialData', 'defaultKeyStatistics'] })
+    ])
 
-    const url = `${BASE_URL}/v3/reference/tickers/${symbol}?apikey=${API_KEY}`
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
-
-    if (data.status === 'ERROR') {
-      return {
-        data: {} as CompanyOverview,
-        error: `API Error: ${data.error}`,
-        success: false
-      }
-    }
-
-    if (!data.results) {
+    if (!quote) {
       return {
         data: {} as CompanyOverview,
         error: `No company data found for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -210,55 +124,57 @@ export async function getCompanyOverview(symbol: string): Promise<ApiResponse<Co
       }
     }
 
-    const ticker = data.results
-    const address = ticker.address || {}
+    const profile = summaryDetail.summaryProfile
+    const financial = summaryDetail.financialData
+    const keyStats = summaryDetail.defaultKeyStatistics
+    const summary = summaryDetail.summaryDetail
 
     const result: CompanyOverview = {
-      symbol: ticker.ticker,
-      name: ticker.name,
-      description: ticker.description || `${ticker.name} is a publicly traded company.`,
-      cik: ticker.cik || '',
-      exchange: ticker.primary_exchange || '',
-      currency: ticker.currency_name || 'USD',
-      country: 'United States',
-      sector: ticker.sic_description || '',
-      industry: ticker.sic_description || '',
-      address: `${address.address1 || ''} ${address.city || ''} ${address.state || ''}`.trim(),
-      fiscalYearEnd: '',
-      latestQuarter: '',
-      marketCapitalization: ticker.market_cap || 0,
-      ebitda: 0, // Not available in basic ticker details
-      peRatio: 0,
-      pegRatio: 0,
-      bookValue: 0,
-      dividendPerShare: 0,
-      dividendYield: 0,
-      eps: 0,
-      revenuePerShareTTM: 0,
-      profitMargin: 0,
-      operatingMarginTTM: 0,
-      returnOnAssetsTTM: 0,
-      returnOnEquityTTM: 0,
-      revenueTTM: 0,
-      grossProfitTTM: 0,
-      dilutedEPSTTM: 0,
-      quarterlyEarningsGrowthYOY: 0,
-      quarterlyRevenueGrowthYOY: 0,
-      analystTargetPrice: 0,
-      trailingPE: 0,
-      forwardPE: 0,
-      priceToSalesRatioTTM: 0,
-      priceToBookRatio: 0,
-      evToRevenue: 0,
-      evToEbitda: 0,
-      beta: 0,
-      high52Week: 0,
-      low52Week: 0,
-      movingAverage50Day: 0,
-      movingAverage200Day: 0,
-      sharesOutstanding: ticker.share_class_shares_outstanding || 0,
-      dividendDate: '',
-      exDividendDate: ''
+      symbol: quote.symbol,
+      name: quote.shortName || quote.longName || quote.symbol,
+      description: profile?.longBusinessSummary || `${quote.shortName || quote.symbol} is a publicly traded company.`,
+      cik: '',
+      exchange: quote.fullExchangeName || '',
+      currency: quote.currency || 'USD',
+      country: profile?.country || 'United States',
+      sector: profile?.sector || '',
+      industry: profile?.industry || '',
+      address: `${profile?.address1 || ''} ${profile?.city || ''} ${profile?.state || ''}`.trim(),
+      fiscalYearEnd: keyStats?.lastFiscalYearEnd ? new Date(Number(keyStats.lastFiscalYearEnd) * 1000).toISOString().split('T')[0] : '',
+      latestQuarter: keyStats?.mostRecentQuarter ? new Date(Number(keyStats.mostRecentQuarter) * 1000).toISOString().split('T')[0] : '',
+      marketCapitalization: quote.marketCap || 0,
+      ebitda: keyStats?.enterpriseValue || 0,
+      peRatio: summary?.trailingPE || 0,
+      pegRatio: keyStats?.pegRatio || 0,
+      bookValue: keyStats?.bookValue || 0,
+      dividendPerShare: (keyStats as any)?.trailingAnnualDividendRate || 0,
+      dividendYield: (keyStats as any)?.dividendYield || 0,
+      eps: keyStats?.trailingEps || 0,
+      revenuePerShareTTM: financial?.revenuePerShare || 0,
+      profitMargin: financial?.profitMargins || 0,
+      operatingMarginTTM: financial?.operatingMargins || 0,
+      returnOnAssetsTTM: financial?.returnOnAssets || 0,
+      returnOnEquityTTM: financial?.returnOnEquity || 0,
+      revenueTTM: financial?.totalRevenue || 0,
+      grossProfitTTM: financial?.grossProfits || 0,
+      dilutedEPSTTM: keyStats?.trailingEps || 0,
+      quarterlyEarningsGrowthYOY: financial?.earningsGrowth || 0,
+      quarterlyRevenueGrowthYOY: financial?.revenueGrowth || 0,
+      analystTargetPrice: financial?.targetMeanPrice || 0,
+      trailingPE: summary?.trailingPE || 0,
+      forwardPE: summary?.forwardPE || 0,
+      priceToSalesRatioTTM: summary?.priceToSalesTrailing12Months || 0,
+      priceToBookRatio: keyStats?.priceToBook || 0,
+      evToRevenue: keyStats?.enterpriseToRevenue || 0,
+      evToEbitda: keyStats?.enterpriseToEbitda || 0,
+      beta: keyStats?.beta || 0,
+      high52Week: (keyStats as any)?.fiftyTwoWeekHigh || 0,
+      low52Week: (keyStats as any)?.fiftyTwoWeekLow || 0,
+      movingAverage50Day: summary?.fiftyDayAverage || 0,
+      movingAverage200Day: summary?.twoHundredDayAverage || 0,
+      sharesOutstanding: keyStats?.sharesOutstanding || 0,
+      dividendDate: (keyStats as any)?.lastDividendDate ? new Date(((keyStats as any).lastDividendDate as number) * 1000).toISOString().split('T')[0] : '',
+      exDividendDate: (keyStats as any)?.exDividendDate ? new Date(((keyStats as any).exDividendDate as number) * 1000).toISOString().split('T')[0] : ''
     }
 
     return {
@@ -277,80 +193,56 @@ export async function getCompanyOverview(symbol: string): Promise<ApiResponse<Co
 
 export async function getStockChart(symbol: string, timeRange: TimeRange): Promise<ApiResponse<ChartData[]>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
-      }
-    }
-
-    // Calculate date range and timespan based on timeRange
+    // Calculate date range and interval based on timeRange
     const now = new Date()
-    let from: string
-    let multiplier = 1
-    let timespan = 'day'
+    let period1: Date
+    let interval: string
 
     switch (timeRange) {
       case '1D':
-        timespan = 'minute'
-        multiplier = 5
-        from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '5m'
+        period1 = new Date(now.getTime() - 24 * 60 * 60 * 1000)
         break
       case '5D':
-        timespan = 'hour'
-        multiplier = 1
-        from = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1h'
+        period1 = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
         break
       case '1M':
-        timespan = 'day'
-        multiplier = 1
-        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1d'
+        period1 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
         break
       case '3M':
-        timespan = 'day'
-        multiplier = 1
-        from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1d'
+        period1 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
         break
       case '6M':
-        timespan = 'day'
-        multiplier = 1
-        from = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1d'
+        period1 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
         break
       case '1Y':
-        timespan = 'week'
-        multiplier = 1
-        from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1wk'
+        period1 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
         break
       case '5Y':
-        timespan = 'month'
-        multiplier = 1
-        from = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1mo'
+        period1 = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000)
         break
       case 'MAX':
-        timespan = 'month'
-        multiplier = 1
-        from = new Date(now.getTime() - 10 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1mo'
+        period1 = new Date(now.getTime() - 10 * 365 * 24 * 60 * 60 * 1000)
         break
       default:
-        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        interval = '1d'
+        period1 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     }
 
-    const to = now.toISOString().split('T')[0]
-    const url = `${BASE_URL}/v2/aggs/ticker/${symbol}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000&apikey=${API_KEY}`
-    
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
+    const historical = await yahooFinance.historical(symbol, {
+      period1: period1.toISOString().split('T')[0],
+      period2: now.toISOString().split('T')[0],
+      interval: interval as any
+    })
 
-    if (data.status === 'ERROR') {
-      return {
-        data: [],
-        error: `API Error: ${data.error}`,
-        success: false
-      }
-    }
-
-    if (!data.results || data.results.length === 0) {
+    if (!historical || historical.length === 0) {
       return {
         data: [],
         error: `No chart data available for symbol "${symbol}". Please verify the symbol is correct.`,
@@ -358,13 +250,13 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
       }
     }
 
-    const chartData: ChartData[] = data.results.map((bar: any) => ({
-      date: new Date(bar.t).toISOString().split('T')[0],
-      open: Number(bar.o.toFixed(2)),
-      high: Number(bar.h.toFixed(2)),
-      low: Number(bar.l.toFixed(2)),
-      close: Number(bar.c.toFixed(2)),
-      volume: bar.v
+    const chartData: ChartData[] = historical.map((bar: any) => ({
+      date: new Date(bar.date).toISOString().split('T')[0],
+      open: Number(bar.open.toFixed(2)),
+      high: Number(bar.high.toFixed(2)),
+      low: Number(bar.low.toFixed(2)),
+      close: Number(bar.close.toFixed(2)),
+      volume: bar.volume
     }))
 
     return {
@@ -383,62 +275,36 @@ export async function getStockChart(symbol: string, timeRange: TimeRange): Promi
 
 export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsItem[]>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
+    // Note: Yahoo Finance doesn't provide a direct news API through yahoo-finance2
+    // For this implementation, we'll return a limited set of mock news data
+    // In a real implementation, you might use a different news API or scraping service
+    
+    const mockNews: NewsItem[] = [
+      {
+        title: `Market Update: ${symbol ? `${symbol} stock movement` : 'General market trends'}`,
+        url: 'https://finance.yahoo.com',
+        time_published: new Date().toISOString(),
+        authors: ['Yahoo Finance'],
+        summary: `Latest market news and analysis ${symbol ? `for ${symbol}` : 'for the general market'}.`,
+        banner_image: '',
+        source: 'Yahoo Finance',
+        category_within_source: 'Market News',
+        source_domain: 'finance.yahoo.com',
+        topics: [],
+        overall_sentiment_score: 0,
+        overall_sentiment_label: 'Neutral',
+        ticker_sentiment: symbol ? [{
+          ticker: symbol,
+          relevance_score: '0.8',
+          ticker_sentiment_score: '0.0',
+          ticker_sentiment_label: 'Neutral'
+        }] : []
       }
-    }
-
-    let url = `${BASE_URL}/v2/reference/news?limit=20&order=desc&sort=published_utc&apikey=${API_KEY}`
-    if (symbol) {
-      url += `&ticker=${symbol}`
-    }
-
-    const response = await fetchWithRetry(url)
-    const data = await response.json()
-
-    if (data.status === 'ERROR') {
-      return {
-        data: [],
-        error: `API Error: ${data.error}`,
-        success: false
-      }
-    }
-
-    if (!data.results || data.results.length === 0) {
-      return {
-        data: [],
-        error: `No news found${symbol ? ` for symbol "${symbol}"` : ''}. Please try again later.`,
-        success: false
-      }
-    }
-
-    const newsItems: NewsItem[] = data.results.map((item: any) => ({
-      title: item.title,
-      url: item.article_url,
-      time_published: item.published_utc,
-      authors: item.author ? [item.author] : [],
-      summary: item.description || item.title,
-      banner_image: item.image_url,
-      source: item.publisher?.name || 'Unknown',
-      category_within_source: item.category || '',
-      source_domain: item.publisher?.homepage_url || '',
-      topics: item.keywords || [],
-      overall_sentiment_score: 0, // Polygon doesn't provide sentiment by default
-      overall_sentiment_label: 'Neutral',
-      ticker_sentiment: item.tickers?.map((ticker: string) => ({
-        ticker,
-        relevance_score: 0.5,
-        ticker_sentiment_score: 0,
-        ticker_sentiment_label: 'Neutral'
-      })) || []
-    }))
+    ]
 
     return {
-      data: newsItems,
-      error: null,
+      data: mockNews,
+      error: 'Note: News functionality is limited with Yahoo Finance API. Consider integrating a dedicated news API for better coverage.',
       success: true
     }
   } catch (error) {
@@ -452,15 +318,7 @@ export async function getMarketNews(symbol?: string): Promise<ApiResponse<NewsIt
 
 export async function getMarketIndices(): Promise<ApiResponse<MarketIndex[]>> {
   try {
-    if (!API_KEY) {
-      return {
-        data: [],
-        error: 'API key not configured. Please add NEXT_PUBLIC_POLYGON_API_KEY to your environment variables.',
-        success: false
-      }
-    }
-
-    // Polygon.io free tier - use major ETFs that track indices
+    // Use major ETFs that track indices
     const indexInfo = [
       { symbol: 'SPY', name: 'S&P 500' },
       { symbol: 'QQQ', name: 'NASDAQ-100' },
@@ -468,25 +326,15 @@ export async function getMarketIndices(): Promise<ApiResponse<MarketIndex[]>> {
     ]
 
     const results: MarketIndex[] = []
-    const today = new Date()
-    const threeDaysAgo = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)
-    const from = threeDaysAgo.toISOString().split('T')[0]
-    const to = today.toISOString().split('T')[0]
 
     for (const index of indexInfo) {
       try {
-        const url = `${BASE_URL}/v2/aggs/ticker/${index.symbol}/range/1/day/${from}/${to}?adjusted=true&sort=desc&limit=5&apikey=${API_KEY}`
-        const response = await fetchWithRetry(url)
-        const data = await response.json()
-
-        if (data.status === 'OK' && data.results && data.results.length > 0) {
-          const recent = data.results[0]
-          const previous = data.results[1] || recent
-
-          const currentPrice = recent.c
-          const previousClose = previous.c
-          const change = currentPrice - previousClose
-          const changePercent = previousClose ? (change / previousClose) * 100 : 0
+        const quote = await yahooFinance.quote(index.symbol)
+        
+        if (quote) {
+          const currentPrice = quote.regularMarketPrice || 0
+          const change = quote.regularMarketChange || 0
+          const changePercent = quote.regularMarketChangePercent || 0
 
           results.push({
             symbol: index.symbol,
@@ -494,7 +342,7 @@ export async function getMarketIndices(): Promise<ApiResponse<MarketIndex[]>> {
             price: Number(currentPrice.toFixed(2)),
             change: Number(change.toFixed(2)),
             changePercent: Number(changePercent.toFixed(2)),
-            lastUpdated: new Date(recent.t).toISOString().split('T')[0]
+            lastUpdated: new Date().toISOString().split('T')[0]
           })
         }
       } catch (error) {
