@@ -1,0 +1,156 @@
+Claude Prompt: 
+I want help to create a prompt for claude code for generated a nextjs stocks application. I want to be able to search a stock, get info about the stcok, charts etc, real time pricing and any information that would be useful
+
+Generated Prompt For Claude Code:
+Please create a comprehensive Next.js stocks application with the following specifications:
+Core Requirements
+Tech Stack
+
+Framework: Next.js 14+ with App Router
+Styling: Tailwind CSS with shadcn/ui components
+State Management: Zustand or React Context
+Charts: Recharts or Chart.js
+TypeScript: Full TypeScript implementation
+API Integration: Alpha Vantage, Yahoo Finance, or similar free stock API
+
+Key Features
+1. Stock Search & Discovery
+
+Real-time search with autocomplete/suggestions
+Search by ticker symbol or company name
+Popular/trending stocks section
+Recent searches history
+Market indices display (S&P 500, NASDAQ, DOW)
+
+2. Stock Information Dashboard
+
+Current Price: Real-time or delayed pricing
+Price Movement: Percentage change, dollar change with color coding
+Key Metrics:
+
+Market Cap, P/E Ratio, EPS
+52-week high/low
+Volume, Average Volume
+Dividend Yield (if applicable)
+Beta, ROE, Debt-to-Equity
+
+
+
+3. Interactive Charts
+
+Time Ranges: 1D, 5D, 1M, 3M, 6M, 1Y, 5Y, MAX
+Chart Types: Line, Candlestick, Volume
+Technical Indicators: Moving averages (50, 200 day)
+Responsive: Mobile-friendly chart interactions
+Zoom/Pan: Interactive chart navigation
+
+4. Company Information
+
+Company description and business overview
+Recent news articles (if available via API)
+Financial highlights
+Key executives
+Sector and industry classification
+
+5. Watchlist Functionality
+
+Add/remove stocks to personal watchlist
+Local storage persistence
+Quick overview of watchlist performance
+Sortable watchlist table
+
+6. Market Overview
+
+Pre-market and after-hours indicators
+Market status (Open/Closed with next session time)
+Top gainers/losers of the day
+Most active stocks
+
+Technical Implementation
+API Integration
+
+Implement proper error handling for API calls
+Add loading states and skeletons
+Rate limiting awareness and user feedback
+Fallback data or cached responses when possible
+
+Performance Optimizations
+
+Image optimization for company logos
+Lazy loading for charts and heavy components
+Debounced search functionality
+Efficient re-rendering patterns
+
+UI/UX Design
+
+Theme: Professional financial dashboard aesthetic
+Dark/Light Mode: Toggle between themes
+Responsive: Mobile-first design approach
+Accessibility: Screen reader friendly, keyboard navigation
+Color Coding: Green for gains, red for losses, intuitive indicators
+
+Data Refresh
+
+Auto-refresh capability for real-time data
+Manual refresh button
+Last updated timestamp display
+WebSocket integration if supported by chosen API
+
+Project Structure
+src/
+├── app/
+│   ├── page.tsx (dashboard/search)
+│   ├── stock/[symbol]/page.tsx (individual stock page)
+│   └── watchlist/page.tsx
+├── components/
+│   ├── ui/ (shadcn components)
+│   ├── StockSearch.tsx
+│   ├── StockChart.tsx
+│   ├── StockCard.tsx
+│   ├── Watchlist.tsx
+│   └── MarketOverview.tsx
+├── lib/
+│   ├── api.ts (stock API functions)
+│   ├── utils.ts
+│   └── types.ts (TypeScript interfaces)
+└── hooks/
+    ├── useStockData.ts
+    └── useWatchlist.ts
+Additional Requirements
+Error Handling
+
+Graceful handling of API failures
+User-friendly error messages
+Retry mechanisms for failed requests
+
+Loading States
+
+Skeleton loaders for all major components
+Progressive loading for large datasets
+Loading indicators for real-time updates
+
+SEO & Performance
+
+Meta tags for individual stock pages
+Open Graph tags for social sharing
+Optimized bundle size
+Fast page load times
+
+API Considerations
+Please use a free tier API service like:
+
+Alpha Vantage (free tier available)
+Yahoo Finance (unofficial API)
+Polygon.io (free tier)
+Or any other reliable free stock data source
+
+Include proper API key management with environment variables and provide clear setup instructions.
+Deliverables
+
+Complete Next.js application with all specified features
+README.md with setup instructions and API configuration
+TypeScript interfaces for all data structures
+Responsive design that works on mobile and desktop
+Clean, commented code following Next.js best practices
+
+Please create a professional, production-ready stocks application that provides comprehensive stock analysis tools for investors and traders.
