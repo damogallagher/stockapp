@@ -88,18 +88,4 @@ export default defineConfig({
   expect: {
     timeout: 10 * 1000, // 10 seconds
   },
-
-  /* Configure coverage collection */
-  coverage: {
-    mode: 'all',
-    include: ['src/**/*.{js,jsx,ts,tsx}'],
-    exclude: [
-      'src/**/*.d.ts',
-      'src/**/*.test.{js,jsx,ts,tsx}',
-      'src/**/*.spec.{js,jsx,ts,tsx}',
-      'src/app/globals.css',
-    ],
-    reporter: [['text'], ['html', { subdir: 'coverage-e2e' }], ['lcov']],
-    reportOnFailure: true,
-  },
 })
