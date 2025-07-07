@@ -349,6 +349,7 @@ jobs:
         
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: unit-test-results
           path: ./unit-coverage/
@@ -374,15 +375,27 @@ jobs:
           
           # Merge coverage files if they exist
           if [ -f "unit-coverage/coverage/lcov.info" ] && [ -f "e2e-coverage/coverage-e2e/lcov.info" ]; then
+            echo "Merging unit and E2E coverage reports"
             lcov -a unit-coverage/coverage/lcov.info -a e2e-coverage/coverage-e2e/lcov.info -o merged-coverage/lcov.info
             genhtml merged-coverage/lcov.info -o merged-coverage/html
           elif [ -f "unit-coverage/coverage/lcov.info" ]; then
+            echo "Using unit test coverage only"
             cp unit-coverage/coverage/lcov.info merged-coverage/lcov.info
             cp -r unit-coverage/coverage/ merged-coverage/html
+          elif [ -f "e2e-coverage/coverage-e2e/lcov.info" ]; then
+            echo "Using E2E test coverage only"
+            cp e2e-coverage/coverage-e2e/lcov.info merged-coverage/lcov.info
+            cp -r e2e-coverage/coverage-e2e/ merged-coverage/html
+          else
+            echo "No coverage reports found, creating empty report"
+            touch merged-coverage/lcov.info
+            mkdir -p merged-coverage/html
+            echo "<html><body>No coverage data available</body></html>" > merged-coverage/html/index.html
           fi
           
       - name: Upload merged coverage
         uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           file: ./merged-coverage/lcov.info
           flags: merged
