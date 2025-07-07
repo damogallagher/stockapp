@@ -334,4 +334,172 @@ describe('StockChart', () => {
     expect(screen.getByTestId('tooltip')).toBeInTheDocument()
     expect(screen.getByTestId('cartesian-grid')).toBeInTheDocument()
   })
+
+  it('does not render badge when data length is 1', () => {
+    const mockChartData = [createMockChartData()[0]] // Only one data point
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    render(<StockChart symbol="AAPL" />)
+
+    expect(screen.queryByText('↗ 1D')).not.toBeInTheDocument()
+    expect(screen.queryByText('↘ 1D')).not.toBeInTheDocument()
+  })
+
+  it('handles different time ranges for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    // Test 5D range
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: '5D',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles 3M time range for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: '3M',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles 6M time range for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: '6M',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles 1Y time range for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: '1Y',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles 5Y time range for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: '5Y',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles MAX time range for date formatting', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: 'MAX',
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles default case for unknown time range', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedTimeRange: 'UNKNOWN' as any,
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument()
+  })
+
+  it('handles default case for unknown chart type', () => {
+    const mockChartData = createMockChartData()
+    mockUseStockChart.mockReturnValue({
+      data: mockChartData,
+      loading: false,
+      error: null,
+    })
+
+    mockUseStockStore.mockReturnValue({
+      ...mockStoreState,
+      selectedChartType: 'unknown' as any,
+    })
+    
+    render(<StockChart symbol="AAPL" />)
+    
+    // Should not render any chart for unknown type
+    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('area-chart')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('bar-chart')).not.toBeInTheDocument()
+  })
+
+  it('returns null when data is empty in renderChart', () => {
+    mockUseStockChart.mockReturnValue({
+      data: [],
+      loading: false,
+      error: null,
+    })
+
+    render(<StockChart symbol="AAPL" />)
+    
+    expect(screen.getByText('No chart data available for this time range')).toBeInTheDocument()
+    expect(screen.queryByTestId('line-chart')).not.toBeInTheDocument()
+  })
 })
