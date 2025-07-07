@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useStockQuote, useCompanyOverview, useStockChart, useMarketNews, useStockData } from '@/hooks/useStockData';
 import * as api from '@/lib/api';
+import { TimeRange } from '@/lib/types';
 import { createMockStockQuote, createMockCompanyOverview, createMockChartData } from '../setup/test-utils';
 
 // Mock the API functions
@@ -96,11 +97,11 @@ describe('Stock Data Hooks', () => {
         .mockResolvedValueOnce({ data: mockChartData1D, error: null, success: true })
         .mockResolvedValueOnce({ data: mockChartData1M, error: null, success: true });
 
-      const { result, rerender } = renderHook(({ timeRange }) => useStockChart('AAPL', timeRange), { initialProps: { timeRange: '1D' as const } });
+      const { result, rerender } = renderHook(({ timeRange }) => useStockChart('AAPL', timeRange), { initialProps: { timeRange: '1D' as TimeRange } });
 
       await waitFor(() => expect(result.current.data).toEqual(mockChartData1D));
 
-      rerender({ timeRange: '1M' as const });
+      rerender({ timeRange: '1M' as TimeRange });
 
       await waitFor(() => expect(result.current.data).toEqual(mockChartData1M));
 
