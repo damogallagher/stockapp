@@ -98,6 +98,11 @@ describe('StockPage', () => {
       
       expect(screen.getByText('Stock Dashboard for AAPL')).toBeInTheDocument()
       expect(screen.getByText('Stock Chart for AAPL')).toBeInTheDocument()
+      
+      // Switch to company tab to see CompanyInfo
+      const companyTab = screen.getByRole('tab', { name: 'Company Info' })
+      fireEvent.click(companyTab)
+      
       expect(screen.getByText('Company Info for AAPL')).toBeInTheDocument()
     })
 
@@ -326,7 +331,7 @@ describe('StockPage', () => {
     it('should have proper page structure', () => {
       render(<StockPage params={{ symbol: 'AAPL' }} />)
       
-      const pageContainer = screen.getByTestId('navigation').closest('div')
+      const pageContainer = screen.getByTestId('navigation').parentElement
       expect(pageContainer).toHaveClass('min-h-screen', 'bg-background')
     })
 

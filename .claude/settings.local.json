@@ -23,7 +23,10 @@
       "Bash(npm test:*)",
       "Bash(lsof:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(sed:*)",
+      "Bash(python3:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": []
   }

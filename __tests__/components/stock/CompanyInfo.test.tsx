@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CompanyInfo from '@/components/stock/CompanyInfo'
 import { useCompanyOverview, useMarketNews } from '@/hooks/useStockData'
@@ -219,10 +219,12 @@ describe('CompanyInfo', () => {
       render(<CompanyInfo symbol="AAPL" />)
       
       // Check for skeleton loading elements
-      expect(screen.getAllByTestId('skeleton')).toHaveLength(9) // 1 title + 6 data items + 1 description label + 1 description
+      expect(screen.getAllByTestId('skeleton')).toHaveLength(15) // 1 title + 12 data items + 2 section skeletons
     })
 
-    it('should display news loading skeleton when news is loading', () => {
+    it('should display news loading skeleton when news is loading', async () => {
+      const user = userEvent.setup()
+      
       mockUseCompanyOverview.mockReturnValue({
         data: mockCompanyOverview,
         loading: false,
@@ -238,7 +240,12 @@ describe('CompanyInfo', () => {
       
       // Switch to news tab
       const newsTab = screen.getByRole('tab', { name: /news/i })
-      fireEvent.click(newsTab)
+      await user.click(newsTab)
+      
+      // Wait for tab to become active
+      await waitFor(() => {
+        expect(newsTab).toHaveAttribute('aria-selected', 'true')
+      })
       
       // Check for news loading skeletons
       expect(screen.getAllByTestId('skeleton')).toHaveLength(9) // 3 news items × 3 skeletons each
@@ -259,7 +266,8 @@ describe('CompanyInfo', () => {
       render(<CompanyInfo symbol="AAPL" />)
       
       // Check for specific skeleton elements
-      expect(screen.getByTestId('skeleton')).toHaveClass('h-6', 'w-48') // Title skeleton
+      const skeletons = screen.getAllByTestId('skeleton')
+      expect(skeletons[0]).toHaveClass('h-6', 'w-48') // Title skeleton
     })
   })
 
@@ -629,7 +637,7 @@ describe('CompanyInfo', () => {
       const financialsTab = screen.getByRole('tab', { name: /financials/i })
       fireEvent.click(financialsTab)
       
-      const gridContainer = screen.getByTestId('financials-grid') || screen.getByText('Valuation Metrics').closest('.grid')
+      const gridContainer = screen.getByText('Valuation Metrics').closest('.grid')
       expect(gridContainer).toHaveClass('grid-cols-1', 'md:grid-cols-2')
     })
   })
@@ -724,8 +732,8 @@ describe('CompanyInfo', () => {
       const bullishBadge = screen.getByText('Bullish')
       const bearishBadge = screen.getByText('Bearish')
       
-      expect(bullishBadge).toHaveClass('bg-green-100') // Assuming success variant
-      expect(bearishBadge).toHaveClass('bg-red-100') // Assuming destructive variant
+      expect(bullishBadge).toHaveClass('bg-green-500') // success variant
+      expect(bearishBadge).toHaveClass('bg-destructive') // destructive variant
     })
 
     it('should limit news articles to 10 items', () => {
@@ -759,7 +767,7 @@ describe('CompanyInfo', () => {
       fireEvent.click(newsTab)
       
       const topicBadge = screen.getByText('Earnings')
-      expect(topicBadge).toHaveClass('border-border') // Assuming outline variant
+      expect(topicBadge).toHaveClass('text-foreground') // outline variant
     })
 
     it('should display only first 2 topics per article', () => {
