@@ -102,8 +102,8 @@ describe('StockSearch', () => {
 
   it('performs search on input change', async () => {
     const mockSearchResults = [
-      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States' },
-      { symbol: 'AAPLW', name: 'Apple Warrant', type: 'Warrant', region: 'United States' },
+      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States', marketOpen: "true", marketClose: "false", timezone: "GMT-5", currency: "USD",matchScore: 0.95 },
+      { symbol: 'AAPLW', name: 'Apple Warrant', type: 'Warrant', region: 'United States', marketOpen: "true", marketClose: "false", timezone: "GMT-5", currency: "USD", matchScore: 0.85 },
     ]
 
     mockSearchStocks.mockResolvedValue({
@@ -126,7 +126,7 @@ describe('StockSearch', () => {
 
   it('shows search results', async () => {
     const mockSearchResults = [
-      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States' },
+      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States', marketOpen: "true", marketClose: "false", timezone: "GMT-5", currency: "USD", matchScore: 0.95 },
     ]
 
     mockSearchStocks.mockResolvedValue({
@@ -225,7 +225,7 @@ describe('StockSearch', () => {
 
   it('handles stock selection from search results', async () => {
     const mockSearchResults = [
-      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States' },
+      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States', marketOpen: "true" },
     ]
 
     mockSearchStocks.mockResolvedValue({
