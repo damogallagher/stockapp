@@ -186,7 +186,7 @@ test.describe('Stock Details Page', () => {
     await expect(companyTab).toBeVisible()
     
     // Should be tappable on mobile
-    await companyTab.tap()
+    await companyTab.click()
     await expect(companyTab).toHaveAttribute('data-state', 'active')
   })
 

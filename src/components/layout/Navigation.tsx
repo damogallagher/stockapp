@@ -47,7 +47,7 @@ export default function Navigation({ onSearch }: NavigationProps) {
                   <span className="text-xl font-bold">StockApp</span>
                 </Link>
               </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <div className="hidden sm:ml-6 sm:flex sm:space-x-8" data-testid="desktop-nav">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href
                   return (
@@ -114,6 +114,7 @@ export default function Navigation({ onSearch }: NavigationProps) {
                 variant="ghost"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="h-9 w-9 p-0"
+                data-testid="mobile-menu-button"
               >
                 {mobileMenuOpen ? (
                   <X className="h-5 w-5" />

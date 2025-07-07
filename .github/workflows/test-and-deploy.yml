@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     
     outputs:
-      build-cache-key: ${{ steps.build-cache.outputs.cache-primary-key }}
+      build-cache-key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx', '**/next.config.*') }}
     
     steps:
       - name: Checkout code

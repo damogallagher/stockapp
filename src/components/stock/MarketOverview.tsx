@@ -152,7 +152,7 @@ export default function MarketOverview({ onSelectStock }: MarketOverviewProps) {
     
     // Auto-refresh every 5 minutes during market hours
     const interval = setInterval(() => {
-      if (marketOpen) {
+      if (isMarketOpen()) {
         fetchIndices()
       }
     }, 5 * 60 * 1000)

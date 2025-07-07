@@ -198,7 +198,7 @@ test.describe('Stock Search Functionality', () => {
     await expect(searchInput).toBeVisible()
     
     // Should be usable with touch
-    await searchInput.tap()
+    await searchInput.click()
     await searchInput.fill('AAPL')
     
     // Mobile keyboard should appear and be usable

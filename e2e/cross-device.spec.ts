@@ -102,10 +102,10 @@ test.describe('Cross-Device Compatibility', () => {
       // Tap search icon to open search
       const searchButton = page.getByTestId('search-button')
       if (await searchButton.isVisible()) {
-        await searchButton.tap()
+        await searchButton.click()
       } else {
         // Fallback to search input
-        await page.getByPlaceholder('Search stocks...').tap()
+        await page.getByPlaceholder('Search stocks...').click()
       }
       
       // Mobile keyboard should appear and search should work
@@ -117,15 +117,15 @@ test.describe('Cross-Device Compatibility', () => {
       await page.goto('/')
       
       // Open mobile menu
-      await page.getByTestId('mobile-menu-button').tap()
+      await page.getByTestId('mobile-menu-button').click()
       
       // Navigate to market page
-      await page.getByRole('link', { name: 'Market' }).tap()
+      await page.getByRole('link', { name: 'Market' }).click()
       await expect(page).toHaveURL('/market')
       
       // Navigate to watchlist
-      await page.getByTestId('mobile-menu-button').tap()
-      await page.getByRole('link', { name: 'Watchlist' }).tap()
+      await page.getByTestId('mobile-menu-button').click()
+      await page.getByRole('link', { name: 'Watchlist' }).click()
       await expect(page).toHaveURL('/watchlist')
     })
 
@@ -138,7 +138,7 @@ test.describe('Cross-Device Compatibility', () => {
       
       // Test touch/swipe on chart (basic interaction)
       const chartElement = chartContainer.first()
-      await chartElement.tap()
+      await chartElement.click()
       
       // Chart should remain interactive
       await expect(chartContainer).toBeVisible()
@@ -177,7 +177,7 @@ test.describe('Cross-Device Compatibility', () => {
       await page.goto('/')
       
       // Touch-based navigation
-      await page.getByText('Market Overview').tap()
+      await page.getByText('Market Overview').first().click()
       await expect(page).toHaveURL('/market')
       
       // Go back
@@ -192,7 +192,7 @@ test.describe('Cross-Device Compatibility', () => {
       await expect(chart).toBeVisible()
       
       // Simulate touch interaction
-      await chart.tap()
+      await chart.click()
       
       // Chart should remain functional
       await expect(chart).toBeVisible()
