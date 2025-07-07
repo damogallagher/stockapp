@@ -142,3 +142,6 @@ firestore-debug.log
 
 # Turbo
 .turbo
+
+playwright-report/*
+test-results/*

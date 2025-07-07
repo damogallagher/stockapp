@@ -1,140 +1,105 @@
-# Unit Test Implementation Plan for Missing Components
-
-## Overview
-This plan outlines the creation of comprehensive unit tests for the remaining components that lack test coverage in the React Stock Application. The focus is on achieving 100% test coverage for all critical components.
+# Unit Tests for Page Components - Todo List
 
 ## Initial Analysis
 
-### Components Without Tests Identified:
-1. **CompanyInfo.tsx** - Critical component for displaying company information with tabbed interface
-2. **MarketOverview.tsx** - Important component for market data display with real-time updates
+I've analyzed the following page components that currently have 0% coverage:
 
-### Key Requirements:
-- Follow existing test patterns from __tests__ directory
-- Use test utilities and mocks from __tests__/setup/
-- Achieve 100% test coverage for each component
-- Focus on component rendering, props/state management, user interactions, error handling, and accessibility
+1. **MarketPage** (`/src/app/market/page.tsx`):
+   - Uses `useStockStore` for dark mode
+   - Uses `useRouter` for navigation
+   - Renders `Navigation` and `MarketOverview` components
+   - Has `handleSelectStock` function for navigation
 
-## Implementation Checklist
+2. **StockPage** (`/src/app/stock/[symbol]/page.tsx`):
+   - Uses `useStockStore` for dark mode
+   - Takes `params.symbol` as prop
+   - Validates symbol with regex and length check
+   - Uses `notFound()` for invalid symbols
+   - Renders multiple components: `Navigation`, `StockDashboard`, `StockChart`, `CompanyInfo`
+   - Uses `Tabs` component for chart/company info switching
 
-### ✅ Phase 1: Analysis & Setup
-- [x] Analyze existing codebase structure
-- [x] Review existing test patterns and utilities
-- [x] Identify components missing test coverage
-- [x] Document testing approach and requirements
+3. **WatchlistPage** (`/src/app/watchlist/page.tsx`):
+   - Uses `useStockStore` for dark mode
+   - Uses `useRouter` for navigation
+   - Renders `Navigation` and `Watchlist` components
+   - Has `handleSelectStock` function for navigation
 
-### 📋 Phase 2: CompanyInfo Component Tests
-- [ ] Create CompanyInfo.test.tsx with comprehensive test suite
-- [ ] Test component rendering with valid props
-- [ ] Test loading states and skeleton display
-- [ ] Test error states and error handling
-- [ ] Test tab navigation functionality (Overview, Financials, News)
-- [ ] Test conditional rendering based on data availability
-- [ ] Test hook integrations (useCompanyOverview, useMarketNews)
-- [ ] Test data formatting and display
-- [ ] Test accessibility features
-- [ ] Test responsive behavior
+4. **ApiTestPage** (`/src/app/api-test/page.tsx`):
+   - Uses `useState` for result and loading states
+   - Has `testYahooFinanceApi` async function
+   - Makes fetch request to `/api/test-yahoo-finance`
+   - Renders UI cards and buttons
+   - Has complex conditional rendering based on result state
 
-### 📋 Phase 3: MarketOverview Component Tests
-- [ ] Create MarketOverview.test.tsx with comprehensive test suite
-- [ ] Test component rendering with and without props
-- [ ] Test market status display (open/closed)
-- [ ] Test market indices display and loading states
-- [ ] Test market movers tabs (gainers, losers, active)
-- [ ] Test refresh functionality
-- [ ] Test auto-refresh behavior during market hours
-- [ ] Test MarketMoverCard component interaction
-- [ ] Test MarketIndexCard component display
-- [ ] Test error handling for API failures
-- [ ] Test onSelectStock callback functionality
-- [ ] Test real-time data updates
+## Implementation Plan
 
-### 📋 Phase 4: Test Coverage Verification
-- [ ] Run test coverage analysis for new tests
-- [ ] Verify 100% coverage for both components
-- [ ] Identify and address any uncovered edge cases
-- [ ] Review test quality and completeness
+### Task Checklist
 
-### 📋 Phase 5: Documentation & Review
-- [ ] Document test implementation details
-- [ ] Review test reliability and maintainability
-- [ ] Ensure tests follow established patterns
-- [ ] Create summary of testing achievements
+- [ ] Create MarketPage test file (`__tests__/app/market/page.test.tsx`)
+  - [ ] Mock all dependencies (useStockStore, useRouter, child components)
+  - [ ] Test component rendering
+  - [ ] Test dark mode functionality
+  - [ ] Test navigation handling
+  - [ ] Test accessibility features
+  - [ ] Test user interactions
 
-## Testing Strategy
+- [ ] Create StockPage test file (`__tests__/app/stock/[symbol]/page.test.tsx`)
+  - [ ] Mock all dependencies (useStockStore, notFound, child components)
+  - [ ] Test component rendering with valid symbol
+  - [ ] Test symbol validation logic
+  - [ ] Test notFound() calls for invalid symbols
+  - [ ] Test dark mode functionality
+  - [ ] Test tabs functionality
+  - [ ] Test accessibility features
+  - [ ] Test edge cases (empty symbol, long symbol, invalid characters)
 
-### CompanyInfo Component Testing Focus Areas:
-1. **Hook Integration**: Mock useCompanyOverview and useMarketNews hooks
-2. **Tab Navigation**: Test switching between Overview, Financials, and News tabs
-3. **Data Display**: Test formatting of financial metrics and company information
-4. **Loading States**: Test skeleton components during data fetching
-5. **Error Handling**: Test error states for both overview and news data
-6. **Conditional Rendering**: Test display logic based on data availability
-7. **News Display**: Test news item rendering and interaction
+- [ ] Create WatchlistPage test file (`__tests__/app/watchlist/page.test.tsx`)
+  - [ ] Mock all dependencies (useStockStore, useRouter, child components)
+  - [ ] Test component rendering
+  - [ ] Test dark mode functionality
+  - [ ] Test navigation handling
+  - [ ] Test accessibility features
+  - [ ] Test user interactions
 
-### MarketOverview Component Testing Focus Areas:
-1. **Market Status**: Test market open/closed status display
-2. **Data Fetching**: Test API integration and error handling
-3. **Real-time Updates**: Test auto-refresh functionality
-4. **User Interactions**: Test refresh button and stock selection
-5. **Tabbed Interface**: Test market movers tab switching
-6. **Component Composition**: Test MarketMoverCard and MarketIndexCard
-7. **Mock Data**: Test with mock market data
-8. **Loading States**: Test skeleton components during data loading
+- [ ] Create ApiTestPage test file (`__tests__/app/api-test/page.test.tsx`)
+  - [ ] Mock fetch API
+  - [ ] Test component rendering
+  - [ ] Test loading states
+  - [ ] Test successful API response
+  - [ ] Test error handling
+  - [ ] Test user interactions (button clicks)
+  - [ ] Test conditional rendering based on result state
+  - [ ] Test accessibility features
 
-### Test Utilities to Leverage:
-- Mock store from test-utils.tsx
-- MSW handlers for API mocking
-- Mock data factories for consistent test data
-- Custom render function with providers
+## Test Patterns to Follow
 
-## Success Criteria
+Based on the existing HomePage test, I'll follow these patterns:
 
-### Coverage Goals:
-- **100% line coverage** for both components
-- **100% branch coverage** for all conditional logic
-- **100% function coverage** for all component methods
-- **Complete test coverage** for all user interactions
+1. **Mock Strategy**: Mock all external dependencies (hooks, Next.js functions, child components)
+2. **Test Structure**: Organize tests by functionality (rendering, interactions, accessibility, etc.)
+3. **Mocking Child Components**: Create simple mock components that accept props and render test-ids
+4. **Dark Mode Testing**: Test document.documentElement.classList manipulation
+5. **Navigation Testing**: Test router.push calls with correct parameters
+6. **Accessibility Testing**: Test heading structure, keyboard navigation, button roles
+7. **Error Handling**: Test edge cases and error scenarios
+8. **Coverage**: Ensure all code paths are tested for 100% coverage
 
-### Quality Metrics:
-- All tests pass reliably
-- No flaky tests
-- Clear test descriptions and organization
-- Proper mocking of dependencies
-- Comprehensive edge case coverage
+## Key Mock Requirements
 
-## Implementation Notes
+- `useStockStore` with all store properties
+- `useRouter` with navigation functions
+- `notFound` from Next.js (for StockPage)
+- `fetch` API (for ApiTestPage)
+- All child components with proper prop interfaces
+- `document.documentElement.classList` for dark mode
+- Lucide React icons
+- `@/lib/utils` cn function
 
-### Testing Patterns to Follow:
-1. Use existing test utilities and mocks
-2. Follow established naming conventions
-3. Group tests by functionality
-4. Use descriptive test names
-5. Mock external dependencies appropriately
-6. Test accessibility features
-7. Test responsive behavior
+## Expected Outcomes
 
-### Key Dependencies to Mock:
-- Custom hooks (useCompanyOverview, useMarketNews)
-- API functions (getMarketIndices)
-- Date/time utilities
-- Zustand store
-- External libraries (date-fns, Recharts)
-
----
-
-## Implementation Progress
-
-### Current Status: Phase 1 Complete ✅
-- Analysis of codebase structure completed
-- Existing test patterns reviewed
-- Missing components identified
-- Testing approach documented
-
-### Next Steps:
-1. Begin Phase 2: CompanyInfo component tests
-2. Implement comprehensive test coverage
-3. Focus on critical user interactions and edge cases
-4. Ensure tests follow established patterns
-
-This plan ensures comprehensive test coverage for all remaining components while maintaining high code quality and reliability standards.
+- 100% test coverage for all four page components
+- Comprehensive test suites following existing patterns
+- Proper mocking to avoid external dependencies
+- Tests that cover all conditional logic and edge cases
+- Accessibility and user interaction testing
+- Error handling and validation testing

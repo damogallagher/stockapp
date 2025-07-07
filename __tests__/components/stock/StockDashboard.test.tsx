@@ -36,6 +36,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: null,
       overview: null,
+      news: [],
       loading: true,
       error: null,
     })
@@ -51,6 +52,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: null,
       overview: null,
+      news: [],
       loading: false,
       error: 'Failed to fetch data',
     })
@@ -64,6 +66,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: null,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -84,6 +87,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -110,6 +114,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: mockOverview,
+      news: [],
       loading: false,
       error: null,
     })
@@ -129,6 +134,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -143,6 +149,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -164,6 +171,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: mockOverview,
+      news: [],
       loading: false,
       error: null,
     })
@@ -190,6 +198,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -221,6 +230,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -251,6 +261,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: mockOverview,
+      news: [],
       loading: false,
       error: null,
     })
@@ -276,6 +287,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })
@@ -295,6 +307,7 @@ describe('StockDashboard', () => {
     mockUseStockData.mockReturnValue({
       quote: mockQuote,
       overview: null,
+      news: [],
       loading: false,
       error: null,
     })

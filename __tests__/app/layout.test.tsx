@@ -183,7 +183,7 @@ describe('Metadata Export', () => {
     })
 
     it('should have correct Open Graph type', () => {
-      expect(metadata.openGraph?.type).toBe('website')
+      expect((metadata.openGraph as any)?.type).toBe('website')
     })
 
     it('should have correct Open Graph images', () => {
@@ -200,7 +200,7 @@ describe('Metadata Export', () => {
 
   describe('Twitter Card Metadata', () => {
     it('should have correct Twitter card type', () => {
-      expect(metadata.twitter?.card).toBe('summary_large_image')
+      expect((metadata.twitter as any)?.card).toBe('summary_large_image')
     })
 
     it('should have correct Twitter title', () => {
@@ -228,11 +228,12 @@ describe('Metadata Export', () => {
     })
 
     it('should have proper image specifications for social sharing', () => {
-      const ogImage = metadata.openGraph?.images?.[0]
-      expect(ogImage?.url).toBe('/og-image.png')
-      expect(ogImage?.width).toBe(1200)
-      expect(ogImage?.height).toBe(630)
-      expect(ogImage?.alt).toBeTruthy()
+      const images = metadata.openGraph?.images
+      const ogImage = Array.isArray(images) ? images[0] : images
+      expect((ogImage as any)?.url).toBe('/og-image.png')
+      expect((ogImage as any)?.width).toBe(1200)
+      expect((ogImage as any)?.height).toBe(630)
+      expect((ogImage as any)?.alt).toBeTruthy()
     })
   })
 })

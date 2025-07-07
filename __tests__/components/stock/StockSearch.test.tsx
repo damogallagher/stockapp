@@ -109,6 +109,7 @@ describe('StockSearch', () => {
     mockSearchStocks.mockResolvedValue({
       success: true,
       data: mockSearchResults,
+      error: null, // No error
     })
 
     render(<StockSearch onSelectStock={mockOnSelectStock} />)
@@ -132,6 +133,7 @@ describe('StockSearch', () => {
     mockSearchStocks.mockResolvedValue({
       success: true,
       data: mockSearchResults,
+      error: null, // No error
     })
 
     render(<StockSearch onSelectStock={mockOnSelectStock} />)
@@ -180,6 +182,7 @@ describe('StockSearch', () => {
   it('shows error state when search fails', async () => {
     mockSearchStocks.mockResolvedValue({
       success: false,
+      data: [], // No up
       error: 'API limit exceeded',
     })
 
@@ -200,6 +203,7 @@ describe('StockSearch', () => {
     mockSearchStocks.mockResolvedValue({
       success: true,
       data: [],
+      error: null, // No error  
     })
 
     render(<StockSearch onSelectStock={mockOnSelectStock} />)
@@ -225,12 +229,13 @@ describe('StockSearch', () => {
 
   it('handles stock selection from search results', async () => {
     const mockSearchResults = [
-      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States', marketOpen: "true" },
+      { symbol: 'AAPL', name: 'Apple Inc.', type: 'Equity', region: 'United States', marketOpen: "true", marketClose: "false", timezone: "GMT-5", currency: "USD",matchScore: 0.95  },
     ]
 
     mockSearchStocks.mockResolvedValue({
       success: true,
       data: mockSearchResults,
+      error: null, // No error
     })
 
     render(<StockSearch onSelectStock={mockOnSelectStock} />)
@@ -349,6 +354,7 @@ describe('StockSearch', () => {
     mockSearchStocks.mockResolvedValue({
       success: true,
       data: [],
+      error: null,
     })
 
     render(<StockSearch onSelectStock={mockOnSelectStock} />)
