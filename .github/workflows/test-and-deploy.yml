@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     
     outputs:
-      build-cache-key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx', '**/next.config.*') }}
+      build-cache-key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx', '**/next.config.*') }}
     
     steps:
       - name: Checkout code
@@ -61,7 +61,7 @@ jobs:
           path: |
             .next
             out
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx', '**/next.config.*') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx', '**/next.config.*') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
             ${{ runner.os }}-nextjs-
