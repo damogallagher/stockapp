@@ -132,9 +132,12 @@ test.describe('Cross-Device Compatibility', () => {
     test('should handle touch interactions for stock charts', async ({ page }) => {
       await page.goto('/stock/AAPL')
       
+      // Wait for page to load
+      await page.waitForLoadState('networkidle')
+      
       // Chart should be visible and responsive to touch
       const chartContainer = page.locator('[data-testid="stock-chart"]')
-      await expect(chartContainer).toBeVisible()
+      await expect(chartContainer).toBeVisible({ timeout: 15000 })
       
       // Test touch/swipe on chart (basic interaction)
       const chartElement = chartContainer.first()

@@ -277,7 +277,7 @@ export default function StockChart({ symbol, height = 400 }: StockChartProps) {
   }
 
   return (
-    <Card>
+    <Card data-testid="stock-chart">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Stock Chart - {symbol}</CardTitle>
